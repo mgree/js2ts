@@ -1,12 +1,12 @@
 use swc_common::Span;
-use swc_ecma_ast::{ModuleItem, Stmt, Expr, Lit, BinaryOp, UnaryOp};
+use swc_ecma_ast::{ModuleItem, Stmt, Expr, Lit, BinaryOp, UnaryOp, Decl};
 
 /// Represents a type.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum Type {
-    /// An unknown type.
+    /// The any type (star type in TypeWhich). This is the default type.
     #[default]
-    Unknown,
+    Any,
 
     /// A number type.
     Number,
@@ -57,6 +57,18 @@ pub enum AstVariants {
         /// The argument of the operator.
         value: Box<Ast>,
     },
+
+    /// The trinary operator (ie, cond ? then : elsy)
+    Trinary {
+        /// The condition of the operator.
+        cond: Box<Ast>,
+
+        /// The value on true.
+        then: Box<Ast>,
+
+        /// The value on false.
+        elsy: Box<Ast>,
+    },
 }
 
 /// Converts a [`swc_ecma_ast`] module body into a list of ASTs with type annotations for type migration.
@@ -102,7 +114,14 @@ fn walk_statement(statement: Stmt) -> Option<Ast> {
         Stmt::For(_) => todo!(),
         Stmt::ForIn(_) => todo!(),
         Stmt::ForOf(_) => todo!(),
-        Stmt::Decl(_) => todo!(),
+
+        Stmt::Decl(Decl::Class(_)) => todo!(),
+        Stmt::Decl(Decl::Fn(_)) => todo!(),
+        Stmt::Decl(Decl::Var(_)) => todo!(),
+        Stmt::Decl(Decl::TsInterface(_)) => todo!(),
+        Stmt::Decl(Decl::TsTypeAlias(_)) => todo!(),
+        Stmt::Decl(Decl::TsEnum(_)) => todo!(),
+        Stmt::Decl(Decl::TsModule(_)) => todo!(),
 
         Stmt::Expr(e) => Some(walk_expression(*e.expr)),
     }
@@ -146,7 +165,22 @@ fn walk_expression(expression: Expr) -> Ast {
         Expr::Assign(_) => todo!(),
         Expr::Member(_) => todo!(),
         Expr::SuperProp(_) => todo!(),
-        Expr::Cond(_) => todo!(),
+
+        Expr::Cond(trinary) => {
+            let cond = walk_expression(*trinary.test);
+            let then = walk_expression(*trinary.cons);
+            let elsy = walk_expression(*trinary.alt);
+            Ast {
+                ast: AstVariants::Trinary {
+                    cond: Box::new(cond),
+                    then: Box::new(then),
+                    elsy: Box::new(elsy),
+                },
+                span: trinary.span,
+                type_: Default::default(),
+            }
+        }
+
         Expr::Call(_) => todo!(),
         Expr::New(_) => todo!(),
         Expr::Seq(_) => todo!(),
