@@ -41,9 +41,18 @@ pub enum AstVariants {
     Boolean(bool),
 }
 
+/// Converts a [`swc_ecma_ast`] module body into a list of ASTs with type annotations for type migration.
 ///
 /// # Example
 /// ```rs
+/// # use swc_ecma_parser::Parser;
+/// # use js2ts::parse;
+/// # fn testy(parser: Parser) -> Result<Vec<Ast>, ()> {
+/// let module = parser.parse_module()?;
+/// let asts = parse::parse(module.body);
+/// println!("{:?}", asts);
+/// # Ok()
+/// # }
 /// ```
 pub fn parse(module: Vec<ModuleItem>) -> Vec<Ast> {
     module.into_iter().filter_map(|item| {
