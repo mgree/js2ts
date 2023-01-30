@@ -1,5 +1,5 @@
 use swc_common::Span;
-use swc_ecma_ast::{ModuleItem, Stmt, Expr, Lit};
+use swc_ecma_ast::{ModuleItem, Stmt, Expr, Lit, BinaryOp};
 
 /// Represents a type.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -8,11 +8,8 @@ pub enum Type {
     #[default]
     Unknown,
 
-    /// An integer type.
-    Int,
-
-    /// A floating point type.
-    Float,
+    /// A number type.
+    Number,
 
     /// A boolean type.
     Bool,
@@ -39,6 +36,18 @@ pub enum AstVariants {
 
     /// A boolean value.
     Boolean(bool),
+
+    /// An infix or binary operator.
+    Binary {
+        /// The operator being applied.
+        op: BinaryOp,
+
+        /// The left hand side.
+        left: Box<Ast>,
+
+        /// The right hand side.
+        right: Box<Ast>,
+    }
 }
 
 /// Converts a [`swc_ecma_ast`] module body into a list of ASTs with type annotations for type migration.
@@ -83,11 +92,11 @@ fn walk_statement(statement: Stmt) -> Option<Ast> {
         Stmt::ForIn(_) => todo!(),
         Stmt::ForOf(_) => todo!(),
         Stmt::Decl(_) => todo!(),
-        Stmt::Expr(e) => walk_expression(*e.expr),
+        Stmt::Expr(e) => Some(walk_expression(*e.expr)),
     }
 }
 
-fn walk_expression(expression: Expr) -> Option<Ast> {
+fn walk_expression(expression: Expr) -> Ast {
     match expression {
         Expr::This(_) => todo!(),
         Expr::Array(_) => todo!(),
@@ -95,7 +104,21 @@ fn walk_expression(expression: Expr) -> Option<Ast> {
         Expr::Fn(_) => todo!(),
         Expr::Unary(_) => todo!(),
         Expr::Update(_) => todo!(),
-        Expr::Bin(_) => todo!(),
+
+        Expr::Bin(bin) => {
+            let left = walk_expression(*bin.left);
+            let right = walk_expression(*bin.right);
+            Ast {
+                ast: AstVariants::Binary {
+                    op: bin.op,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                },
+                span: bin.span,
+                type_: Default::default(),
+            }
+        }
+
         Expr::Assign(_) => todo!(),
         Expr::Member(_) => todo!(),
         Expr::SuperProp(_) => todo!(),
@@ -109,19 +132,19 @@ fn walk_expression(expression: Expr) -> Option<Ast> {
             match lit {
                 Lit::Str(_) => todo!(),
 
-                Lit::Bool(b) => Some(Ast {
+                Lit::Bool(b) => Ast {
                     ast: AstVariants::Boolean(b.value),
                     span: b.span,
-                    type_: Default::default(),
-                }),
+                    type_: Type::Bool,
+                },
 
                 Lit::Null(_) => todo!(),
 
-                Lit::Num(n) => Some(Ast {
+                Lit::Num(n) => Ast {
                     ast: AstVariants::Number(n.value),
                     span: n.span,
-                    type_: Default::default(),
-                }),
+                    type_: Type::Number,
+                },
 
                 Lit::BigInt(_) => todo!(),
                 Lit::Regex(_) => todo!(),
