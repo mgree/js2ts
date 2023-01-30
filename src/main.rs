@@ -6,6 +6,8 @@ use swc_ecma_parser::lexer::Lexer;
 
 use clap::Parser as ClapParser;
 
+use js2ts::parse;
+
 #[derive(ClapParser)]
 struct Args {
     filename: String,
@@ -44,11 +46,13 @@ fn main() {
         e.into_diagnostic(&handler).emit();
     }
 
-    let _module = match parser.parse_module() {
+    let module = match parser.parse_module() {
         Ok(v) => v,
         Err(e) => {
             e.into_diagnostic(&handler).emit();
             std::process::exit(1);
         }
     };
+
+    println!("{:?}", parse::parse(module.body));
 }
