@@ -27,8 +27,8 @@ fn main() {
     let handler = Handler::with_tty_emitter(ColorConfig::Always, true, false, Some(cm.clone()));
 
     let fm = cm.new_source_file(
-        FileName::Custom(args.filename.into()),
-        file.into()
+        FileName::Custom(args.filename),
+        file
     );
 
    let lexer = Lexer::new(

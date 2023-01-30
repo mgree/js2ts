@@ -1,8 +1,8 @@
 use swc_common::Span;
-use swc_ecma_ast::{ModuleItem, Stmt, Expr, Lit, BinaryOp};
+use swc_ecma_ast::{ModuleItem, Stmt, Expr, Lit, BinaryOp, UnaryOp};
 
 /// Represents a type.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum Type {
     /// An unknown type.
     #[default]
@@ -47,7 +47,16 @@ pub enum AstVariants {
 
         /// The right hand side.
         right: Box<Ast>,
-    }
+    },
+
+    /// A unary operator.
+    Unary {
+        /// The operator being applied.
+        op: UnaryOp,
+
+        /// The argument of the operator.
+        value: Box<Ast>,
+    },
 }
 
 /// Converts a [`swc_ecma_ast`] module body into a list of ASTs with type annotations for type migration.
@@ -75,7 +84,9 @@ pub fn parse(module: Vec<ModuleItem>) -> Vec<Ast> {
 fn walk_statement(statement: Stmt) -> Option<Ast> {
     match statement {
         Stmt::Block(_) => todo!(),
+
         Stmt::Empty(_) => None,
+
         Stmt::Debugger(_) => todo!(),
         Stmt::With(_) => todo!(),
         Stmt::Return(_) => todo!(),
@@ -92,6 +103,7 @@ fn walk_statement(statement: Stmt) -> Option<Ast> {
         Stmt::ForIn(_) => todo!(),
         Stmt::ForOf(_) => todo!(),
         Stmt::Decl(_) => todo!(),
+
         Stmt::Expr(e) => Some(walk_expression(*e.expr)),
     }
 }
@@ -102,7 +114,19 @@ fn walk_expression(expression: Expr) -> Ast {
         Expr::Array(_) => todo!(),
         Expr::Object(_) => todo!(),
         Expr::Fn(_) => todo!(),
-        Expr::Unary(_) => todo!(),
+
+        Expr::Unary(unary) => {
+            let value = walk_expression(*unary.arg);
+            Ast {
+                ast: AstVariants::Unary {
+                    op: unary.op,
+                    value: Box::new(value),
+                },
+                span: unary.span,
+                type_: Default::default(),
+            }
+        }
+
         Expr::Update(_) => todo!(),
 
         Expr::Bin(bin) => {
@@ -159,7 +183,9 @@ fn walk_expression(expression: Expr) -> Ast {
         Expr::Yield(_) => todo!(),
         Expr::MetaProp(_) => todo!(),
         Expr::Await(_) => todo!(),
-        Expr::Paren(_) => todo!(),
+
+        Expr::Paren(paren) => walk_expression(*paren.expr),
+
         Expr::JSXMember(_) => todo!(),
         Expr::JSXNamespacedName(_) => todo!(),
         Expr::JSXEmpty(_) => todo!(),
