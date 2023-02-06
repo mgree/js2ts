@@ -5,3 +5,6 @@
 /// This custom ast desugars certain statements and expressions (for example, `switch` statements into if statements) to
 /// make type migration easier. Not all statements (for example, `with` statements) are supported.
 pub mod parse;
+
+/// Implements functions for constraint generation and generating a model for the resulting constraints for the types using [`z3`].
+pub mod check;

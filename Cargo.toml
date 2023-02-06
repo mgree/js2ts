@@ -11,3 +11,4 @@ swc_ecma_ast = "0.96.3"
 swc_common = { version = "0.29.28", features = ["tty-emitter"] }
 swc_ecma_parser = "0.124.4"
 clap = { version = "4.1.4", features = ["derive"] }
+z3 = "0.11.2"

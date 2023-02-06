@@ -13,6 +13,9 @@ pub enum Type {
 
     /// A boolean type.
     Bool,
+
+    /// A metavariable type. This is used in constraint generation. If this type exists after type migration, that is a bug.
+    Metavar(u32),
 }
 
 /// Represents an AST annotated with metadata such as types and location info.
