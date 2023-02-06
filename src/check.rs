@@ -1,4 +1,6 @@
-use z3::{Context, Config, DatatypeSort, DatatypeBuilder, ast::Dynamic};
+use std::collections::{HashMap, hash_map::Entry};
+
+use z3::{Context, Config, DatatypeSort, DatatypeBuilder, ast::{Dynamic, Datatype}};
 
 use super::parse::{Ast, AstVariants, Type};
 
@@ -13,6 +15,7 @@ struct Z3State<'a> {
 struct State<'a> {
     config: Config,
     z3: Z3State<'a>,
+    vars: HashMap<u32, Dynamic<'a>>,
     metavar_index: u32,
 }
 
@@ -28,12 +31,13 @@ impl<'a> State<'a> {
                 any_z3: type_datatype.variants[2].constructor.apply(&[]),
                 type_datatype,
             },
+            vars: HashMap::new(),
             metavar_index: 0,
         }
     }
 
     fn type_datatype(cxt: &Context) -> DatatypeSort<'_> {
-        DatatypeBuilder::new(&cxt, "Type")
+        DatatypeBuilder::new(cxt, "Type")
             .variant("Any", vec![])
             .variant("Number", vec![])
             .variant("Bool", vec![])
@@ -71,7 +75,11 @@ impl<'a> State<'a> {
             .finish()
     }
 
-    fn solve_helper(&mut self, ast: &Ast) {
+    fn solve_helper(&mut self, ast: &mut Ast) {
+        if let Type::Any = ast.type_ {
+            ast.type_ = self.next_metavar();
+        }
+
         match &ast.ast {
             AstVariants::Number(_)
             | AstVariants::Boolean(_) => {
@@ -84,6 +92,30 @@ impl<'a> State<'a> {
         }
     }
 
+    fn type_to_z3_sort(&mut self, type_: Type) -> Dynamic<'a> {
+        match type_ {
+            Type::Any => self.z3.any_z3.clone(),
+            Type::Number => self.z3.number_z3.clone(),
+            Type::Bool => self.z3.bool_z3.clone(),
+            Type::Metavar(n) => {
+                match self.vars.entry(n) {
+                    Entry::Occupied(v) => v.get().clone(),
+
+                    Entry::Vacant(v) => {
+                        let t = Datatype::fresh_const(
+                            self.z3.context,
+                            &type_.to_string(),
+                            &self.z3.type_datatype.sort,
+                        );
+                        let x = Dynamic::from_ast(&t);
+                        v.insert(x.clone());
+                        x
+                    }
+                }
+            }
+        }
+    }
+
     fn next_metavar(&mut self) -> Type {
         let next = self.metavar_index;
         self.metavar_index += 1;
@@ -92,12 +124,12 @@ impl<'a> State<'a> {
 }
 
 /// Applies type migration to the generated list of [`Ast`]s.
-pub fn solve(asts: &mut Vec<Ast>) {
+pub fn solve(asts: &mut [Ast]) {
     let config = Config::new();
     let context = Context::new(&config);
     let mut state = State::new(&context, config);
 
-    for ast in asts.iter() {
+    for ast in asts.iter_mut() {
         state.solve_helper(ast);
     }
 }

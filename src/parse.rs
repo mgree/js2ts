@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use swc_common::Span;
 use swc_ecma_ast::{ModuleItem, Stmt, Expr, Lit, BinaryOp, UnaryOp, Decl};
 
@@ -8,14 +10,25 @@ pub enum Type {
     #[default]
     Any,
 
+    /// A metavariable type. This is used in constraint generation. If this type exists after type migration, that is a bug.
+    Metavar(u32),
+
     /// A number type.
     Number,
 
     /// A boolean type.
     Bool,
+}
 
-    /// A metavariable type. This is used in constraint generation. If this type exists after type migration, that is a bug.
-    Metavar(u32),
+impl Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Type::Any => write!(f, "any"),
+            Type::Number => write!(f, "number"),
+            Type::Bool => write!(f, "bool"),
+            Type::Metavar(n) => write!(f, "${}", n),
+        }
+    }
 }
 
 /// Represents an AST annotated with metadata such as types and location info.
