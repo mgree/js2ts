@@ -42,6 +42,9 @@ pub struct Ast {
 
     /// The type of the ast.
     pub type_: Type,
+
+    /// A coercion.
+    pub coercion: Option<Type>,
 }
 
 /// Represents the various types of ASTs that are valid for type migration.
@@ -159,6 +162,7 @@ fn walk_expression(expression: Expr) -> Ast {
                 },
                 span: unary.span,
                 type_: Default::default(),
+                coercion: Default::default(),
             }
         }
 
@@ -175,6 +179,7 @@ fn walk_expression(expression: Expr) -> Ast {
                 },
                 span: bin.span,
                 type_: Default::default(),
+                coercion: Default::default(),
             }
         }
 
@@ -194,6 +199,7 @@ fn walk_expression(expression: Expr) -> Ast {
                 },
                 span: trinary.span,
                 type_: Default::default(),
+                coercion: Default::default(),
             }
         }
 
@@ -210,6 +216,7 @@ fn walk_expression(expression: Expr) -> Ast {
                     ast: AstVariants::Boolean(b.value),
                     span: b.span,
                     type_: Type::Bool,
+                    coercion: Default::default(),
                 },
 
                 Lit::Null(_) => todo!(),
@@ -218,6 +225,7 @@ fn walk_expression(expression: Expr) -> Ast {
                     ast: AstVariants::Number(n.value),
                     span: n.span,
                     type_: Type::Number,
+                    coercion: Default::default(),
                 },
 
                 Lit::BigInt(_) => todo!(),

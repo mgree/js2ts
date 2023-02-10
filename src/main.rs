@@ -6,7 +6,7 @@ use swc_ecma_parser::lexer::Lexer;
 
 use clap::Parser as ClapParser;
 
-use js2ts::parse;
+use js2ts::{parse, check};
 
 #[derive(ClapParser)]
 struct Args {
@@ -54,5 +54,7 @@ fn main() {
         }
     };
 
-    println!("{:?}", parse::parse(module.body));
+    let mut asts = parse::parse(module.body);
+    check::solve(&mut asts).expect("oh no");
+    println!("{:?}", asts);
 }
