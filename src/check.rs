@@ -7,9 +7,9 @@ use super::parse::{Ast, AstVariants, Type};
 struct Z3State<'a> {
     context: &'a Context,
     type_datatype: DatatypeSort<'a>,
+    any_z3: Dynamic<'a>,
     number_z3: Dynamic<'a>,
     bool_z3: Dynamic<'a>,
-    any_z3: Dynamic<'a>,
 }
 
 impl<'a> Z3State<'a> {
@@ -61,9 +61,9 @@ impl<'a> State<'a> {
             config,
             z3: Z3State {
                 context,
-                number_z3: type_datatype.variants[0].constructor.apply(&[]),
-                bool_z3: type_datatype.variants[1].constructor.apply(&[]),
-                any_z3: type_datatype.variants[2].constructor.apply(&[]),
+                any_z3: type_datatype.variants[0].constructor.apply(&[]),
+                number_z3: type_datatype.variants[1].constructor.apply(&[]),
+                bool_z3: type_datatype.variants[2].constructor.apply(&[]),
                 type_datatype,
             },
             solver: Optimize::new(context),
@@ -133,7 +133,7 @@ impl<'a> State<'a> {
                 let (t1, phi1) = self.solve_helper(&mut **cond);
                 let (t2, phi2) = self.solve_helper(&mut **then);
                 let (t3, phi3) = self.solve_helper(&mut **elsy);
-                let phi4 = self.strengthen(t1, Type::Bool, &mut **cond) & self.type_to_z3_sort(&t2)._eq(&self.type_to_z3_sort(&t3));
+                let phi4 = self.strengthen(t1, Type::Bool, &mut **cond) & self.type_to_z3_sort(&t2)._eq(&self.type_to_z3_sort(&t3)) & self.type_to_z3_sort(&t2)._eq(&self.type_to_z3_sort(&ast.type_));
                 (t2, phi1 & phi2 & phi3 & phi4)
             }
         }
@@ -163,6 +163,11 @@ impl<'a> State<'a> {
         }
     }
 
+    fn ground(&self, _t: &Type) -> Bool<'a> {
+        // temporary
+        self.z3_bool(true)
+    }
+
     fn coerce(&mut self, t1: Type, t2: Type, ast: &mut Ast) {
         let t1_z3 = self.type_to_z3_sort(&t1);
         let t2_z3 = self.type_to_z3_sort(&t2);
@@ -173,22 +178,21 @@ impl<'a> State<'a> {
 
     fn weaken(&mut self, t1: Type, ast: &mut Ast, phi1: Bool<'a>) -> (Type, Bool<'a>) {
         let alpha = self.next_metavar();
-        //let coerce_case = self.type_to_z3_sort(&alpha)._eq(&self.z3.any_z3) & self.ground(&t1);
+        let coerce_case = self.type_to_z3_sort(&alpha)._eq(&self.z3.any_z3) & self.ground(&t1);
         let dont_coerce_case = self.type_to_z3_sort(&t1)._eq(&self.type_to_z3_sort(&alpha));
         self.coerce(t1, alpha.clone(), ast);
-        (alpha, phi1 & (/* coerce_case | */ dont_coerce_case))
+        (alpha, phi1 & (coerce_case | dont_coerce_case))
     }
 
     #[must_use]
     fn strengthen(&mut self, t1: Type, t2: Type, ast: &mut Ast) -> Bool<'a> {
-        // let coerce_case = self.t2z3(&t1)._eq(&self.z3.any_z3) & self.ground(&t2);
+        let coerce_case = self.type_to_z3_sort(&t1)._eq(&self.z3.any_z3) & self.ground(&t2);
         // we don't care about putting an ID coercion, that's fine
         let t1_z3 = self.type_to_z3_sort(&t1);
         let t2_z3 = self.type_to_z3_sort(&t2);
         let dont_coerce_case = t1_z3._eq(&t2_z3);
         self.coerce(t1, t2, ast);
-        //coerce_case |
-        dont_coerce_case
+        coerce_case | dont_coerce_case
     }
 
     fn solve_model(&self, model: Model) -> HashMap<u32, Type> {
@@ -204,7 +208,7 @@ impl<'a> State<'a> {
         // if type already exists, nothing to do
         if let Type::Metavar(i) = t {
             if let Some(s) = model_result.get(i) {
-                *t = s.clone()
+                *t = s.clone();
             }
         }
     }
@@ -245,11 +249,9 @@ pub fn solve(asts: &mut [Ast]) -> Result<(), String> {
     let context = Context::new(&config);
     let mut state = State::new(&context, config);
 
-    let mut types = Vec::new();
     let mut phi = state.z3_bool(true);
     for ast in asts.iter_mut() {
-        let (t, p) = state.solve_helper(ast);
-        types.push(t);
+        let (_, p) = state.solve_helper(ast);
         phi &= p;
     }
 
