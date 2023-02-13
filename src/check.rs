@@ -132,6 +132,9 @@ impl<'a> State<'a> {
         }
 
         match &mut ast.ast {
+
+            // ---------------------------
+            // Γ ⊢ lit => coerce(lit.typ(), α, lit), α, weaken(lit.typ(), α)
             AstVariants::Number(_)
             | AstVariants::Boolean(_) => {
                 self.weaken(ast.type_.clone(), ast, self.z3_bool(true))
@@ -140,6 +143,13 @@ impl<'a> State<'a> {
             AstVariants::Binary { .. } => todo!(),
             AstVariants::Unary { .. } => todo!(),
 
+            // Γ ⊢ e_1 => T_1, φ_1
+            // Γ ⊢ e_2 => T_2, φ_2
+            // Γ ⊢ e_3 => T_3, φ_3
+            // ----------------------------------------------
+            // Γ ⊢ if e_1 then e_2 else e_3 => if coerce(T_1, bool, e_1) then e_2 else e_3, T_2,
+            //                                 φ_1 && φ_2 && φ_3 &&
+            //                                 strengthen(T_1, bool) && T_2 = T_3
             AstVariants::Trinary { cond, then, elsy } => {
                 let (t1, phi1) = self.solve_helper(&mut **cond);
                 let (t2, phi2) = self.solve_helper(&mut **then);
