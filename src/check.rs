@@ -47,7 +47,7 @@ impl<'a> Z3State<'a> {
 }
 
 struct State<'a> {
-    config: Config,
+    _config: Config,
     z3: Z3State<'a>,
     solver: Optimize<'a>,
     vars: HashMap<u32, Dynamic<'a>>,
@@ -58,7 +58,7 @@ impl<'a> State<'a> {
     fn new(context: &'a Context, config: Config) -> Self {
         let type_datatype = State::type_datatype(context);
         Self {
-            config,
+            _config: config,
             z3: Z3State {
                 context,
                 any_z3: type_datatype.variants[0].constructor.apply(&[]),
@@ -205,7 +205,6 @@ impl<'a> State<'a> {
     }
 
     fn annotate_type(&self, model_result: &HashMap<u32, Type>, t: &mut Type) {
-        // if type already exists, nothing to do
         if let Type::Metavar(i) = t {
             if let Some(s) = model_result.get(i) {
                 *t = s.clone();
@@ -215,6 +214,18 @@ impl<'a> State<'a> {
 
     fn annotate(&self, model_result: &HashMap<u32, Type>, ast: &mut Ast) {
         self.annotate_type(model_result, &mut ast.type_);
+        if let Some(t) = &mut ast.coercion {
+            self.annotate_type(model_result, t);
+        }
+
+        match &ast.coercion {
+            Some(t) if *t == ast.type_ => {
+                ast.coercion = None;
+            }
+
+            _ => (),
+        }
+
         match &mut ast.ast {
             AstVariants::Number(_)
             | AstVariants::Boolean(_) => (),
