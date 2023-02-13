@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use swc_common::Span;
-use swc_ecma_ast::{ModuleItem, Stmt, Expr, Lit, BinaryOp, UnaryOp, Decl};
+use swc_ecma_ast::{BinaryOp, Decl, Expr, Lit, ModuleItem, Stmt, UnaryOp};
 
 /// Represents a type.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -104,12 +104,13 @@ pub enum AstVariants {
 /// # }
 /// ```
 pub fn parse(module: Vec<ModuleItem>) -> Vec<Ast> {
-    module.into_iter().filter_map(|item| {
-        match item {
+    module
+        .into_iter()
+        .filter_map(|item| match item {
             ModuleItem::ModuleDecl(_) => None,
             ModuleItem::Stmt(statement) => walk_statement(statement),
-        }
-    }).collect()
+        })
+        .collect()
 }
 
 fn walk_statement(statement: Stmt) -> Option<Ast> {
@@ -208,31 +209,29 @@ fn walk_expression(expression: Expr) -> Ast {
         Expr::Seq(_) => todo!(),
         Expr::Ident(_) => todo!(),
 
-        Expr::Lit(lit) => {
-            match lit {
-                Lit::Str(_) => todo!(),
+        Expr::Lit(lit) => match lit {
+            Lit::Str(_) => todo!(),
 
-                Lit::Bool(b) => Ast {
-                    ast: AstVariants::Boolean(b.value),
-                    span: b.span,
-                    type_: Type::Bool,
-                    coercion: Default::default(),
-                },
+            Lit::Bool(b) => Ast {
+                ast: AstVariants::Boolean(b.value),
+                span: b.span,
+                type_: Type::Bool,
+                coercion: Default::default(),
+            },
 
-                Lit::Null(_) => todo!(),
+            Lit::Null(_) => todo!(),
 
-                Lit::Num(n) => Ast {
-                    ast: AstVariants::Number(n.value),
-                    span: n.span,
-                    type_: Type::Number,
-                    coercion: Default::default(),
-                },
+            Lit::Num(n) => Ast {
+                ast: AstVariants::Number(n.value),
+                span: n.span,
+                type_: Type::Number,
+                coercion: Default::default(),
+            },
 
-                Lit::BigInt(_) => todo!(),
-                Lit::Regex(_) => todo!(),
-                Lit::JSXText(_) => todo!(),
-            }
-        }
+            Lit::BigInt(_) => todo!(),
+            Lit::Regex(_) => todo!(),
+            Lit::JSXText(_) => todo!(),
+        },
 
         Expr::Tpl(_) => todo!(),
         Expr::TaggedTpl(_) => todo!(),

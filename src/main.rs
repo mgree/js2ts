@@ -1,12 +1,12 @@
-use swc_common::{SourceMap, FileName};
-use swc_common::errors::{Handler, ColorConfig};
+use swc_common::errors::{ColorConfig, Handler};
 use swc_common::sync::Lrc;
-use swc_ecma_parser::{StringInput, Syntax, Parser};
+use swc_common::{FileName, SourceMap};
 use swc_ecma_parser::lexer::Lexer;
+use swc_ecma_parser::{Parser, StringInput, Syntax};
 
 use clap::Parser as ClapParser;
 
-use js2ts::{parse, check};
+use js2ts::{check, parse};
 
 #[derive(ClapParser)]
 struct Args {
@@ -26,12 +26,9 @@ fn main() {
     let cm = Lrc::<SourceMap>::default();
     let handler = Handler::with_tty_emitter(ColorConfig::Always, true, false, Some(cm.clone()));
 
-    let fm = cm.new_source_file(
-        FileName::Custom(args.filename),
-        file
-    );
+    let fm = cm.new_source_file(FileName::Custom(args.filename), file);
 
-   let lexer = Lexer::new(
+    let lexer = Lexer::new(
         // We want to parse ecmascript
         Syntax::Es(Default::default()),
         // EsVersion defaults to es5
