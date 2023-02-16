@@ -274,3 +274,76 @@ fn walk_expression(expression: Expr) -> Ast {
         Expr::Invalid(_) => todo!(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use swc_common::sync::Lrc;
+    use swc_common::{FileName, SourceMap};
+    use swc_ecma_parser::lexer::Lexer;
+    use swc_ecma_parser::{Parser, StringInput, Syntax};
+    use super::*;
+
+    fn parse_helper(contents: &str) -> Vec<Ast> {
+        let cm = Lrc::<SourceMap>::default();
+        let fm = cm.new_source_file(FileName::Custom("test.js".to_string()), contents.to_string());
+
+        let lexer = Lexer::new(
+            // We want to parse ecmascript
+            Syntax::Es(Default::default()),
+            // EsVersion defaults to es5
+            Default::default(),
+            StringInput::from(&*fm),
+            None,
+        );
+
+        let mut parser = Parser::new_from(lexer);
+        let body = parser.parse_module().expect("error parsing").body;
+        parse(body)
+    }
+
+    #[test]
+    fn number() {
+        parse_helper("2");
+        parse_helper("3.5");
+        parse_helper("6e9");
+        parse_helper("4e-20");
+    }
+
+    #[test]
+    fn boolean() {
+        parse_helper("true");
+        parse_helper("false");
+    }
+
+    #[test]
+    fn operators() {
+        parse_helper("1 + 2");
+        parse_helper("1 - 2");
+        parse_helper("1 * 2");
+        parse_helper("1 / 2");
+        parse_helper("1 << 2");
+        parse_helper("1 >> 2");
+        parse_helper("1 < 2");
+        parse_helper("1 > 2");
+        parse_helper("1 == 2");
+        parse_helper("1 === 2");
+        parse_helper("1 != 2");
+        parse_helper("1 !== 2");
+        parse_helper("1 <= 2");
+        parse_helper("1 >= 2");
+        parse_helper("1 & 2");
+        parse_helper("1 | 2");
+        parse_helper("1 ^ 2");
+        parse_helper("1 + 2 * 3 / 4");
+        parse_helper("-2");
+        parse_helper("+true");
+        parse_helper("(true + 2) / false");
+    }
+
+    #[test]
+    fn ternary() {
+        parse_helper("true ? 42 : false");
+        parse_helper("false ? 2 + 3 : 9 / 5");
+        parse_helper("true && false ? 4 - 3 : false || true");
+    }
+}
