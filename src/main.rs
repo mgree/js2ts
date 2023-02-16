@@ -6,7 +6,7 @@ use swc_ecma_parser::{Parser, StringInput, Syntax};
 
 use clap::Parser as ClapParser;
 
-use js2ts::{check, parse};
+use js2ts::{check, parse, typecheck};
 
 #[derive(ClapParser)]
 struct Args {
@@ -53,6 +53,8 @@ fn main() {
 
     let mut asts = parse::parse(module.body);
     check::solve(&mut asts).expect("oh no");
+    typecheck::typecheck(&asts).expect("oh no part 2");
+
     for ast in asts {
         println!("{}", ast);
     }

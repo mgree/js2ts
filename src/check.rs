@@ -388,6 +388,7 @@ pub fn solve(asts: &mut [Ast]) -> Result<(), String> {
 mod tests {
     use crate::testing::*;
     use super::*;
+    use crate::typecheck::typecheck;
 
     #[test]
     fn number() {
@@ -395,6 +396,7 @@ mod tests {
         solve(&mut v).expect("should not fail");
         assert_eq!(v.len(), 1);
         assert_eq!(v[0].to_string(), "2".to_string());
+        typecheck(&v).expect("should not fail");
     }
 
     #[test]
@@ -403,6 +405,7 @@ mod tests {
         solve(&mut v).expect("should not fail");
         assert_eq!(v.len(), 1);
         assert_eq!(v[0].to_string(), "true".to_string());
+        typecheck(&v).expect("should not fail");
     }
 
     #[test]
@@ -411,6 +414,7 @@ mod tests {
         solve(&mut v).expect("should not fail");
         assert_eq!(v.len(), 1);
         assert_eq!(v[0].to_string(), "(true ? 2 : 3)".to_string());
+        typecheck(&v).expect("should not fail");
     }
 
     #[test]
@@ -419,6 +423,7 @@ mod tests {
         solve(&mut v).expect("should not fail");
         assert_eq!(v.len(), 1);
         assert_eq!(v[0].to_string(), "(false ? (2 : any) : (false : any))".to_string());
+        typecheck(&v).expect("should not fail");
     }
 
     #[test]
@@ -427,6 +432,7 @@ mod tests {
         solve(&mut v).expect("should not fail");
         assert_eq!(v.len(), 1);
         assert_eq!(v[0].to_string(), "(((2 : any) : bool) ? true : false)".to_string());
+        typecheck(&v).expect("should not fail");
     }
 
     #[test]
@@ -435,5 +441,6 @@ mod tests {
         solve(&mut v).expect("should not fail");
         assert_eq!(v.len(), 1);
         assert_eq!(v[0].to_string(), "(((2 : any) : bool) ? (false : any) : (3 : any))".to_string());
+        typecheck(&v).expect("should not fail");
     }
 }
