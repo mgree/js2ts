@@ -8,3 +8,7 @@ pub mod parse;
 
 /// Implements functions for constraint generation and generating a model for the resulting constraints for the types using [`z3`].
 pub mod check;
+
+/// Private crate for testing utilities.
+#[cfg(test)]
+pub(crate) mod testing;
