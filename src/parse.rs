@@ -32,7 +32,7 @@ impl Display for Type {
 }
 
 /// Represents an AST annotated with metadata such as types and location info.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Ast {
     /// The variant of the AST.
     pub ast: AstNode,
@@ -42,7 +42,7 @@ pub struct Ast {
 }
 
 /// Represents the various types of ASTs that are valid for type migration.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AstNode {
     /// A numeric value. This can be either an integer or a float.
     Number(f64),

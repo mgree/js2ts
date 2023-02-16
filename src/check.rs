@@ -339,9 +339,11 @@ impl<'a> State<'a> {
 
             AstNode::Coercion { expr, source_type, dest_type } => {
                 self.annotate(model_result, &mut **expr);
-
                 self.annotate_type(model_result, source_type);
                 self.annotate_type(model_result, dest_type);
+                if source_type == dest_type {
+                    *ast = (**expr).clone();
+                }
             }
         }
     }
@@ -380,4 +382,58 @@ pub fn solve(asts: &mut [Ast]) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::testing::*;
+    use super::*;
+
+    #[test]
+    fn number() {
+        let mut v = parse_helper("2");
+        solve(&mut v).expect("should not fail");
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].to_string(), "2".to_string());
+    }
+
+    #[test]
+    fn boolean() {
+        let mut v = parse_helper("true");
+        solve(&mut v).expect("should not fail");
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].to_string(), "true".to_string());
+    }
+
+    #[test]
+    fn ternary_same() {
+        let mut v = parse_helper("true ? 2 : 3");
+        solve(&mut v).expect("should not fail");
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].to_string(), "(true ? 2 : 3)".to_string());
+    }
+
+    #[test]
+    fn ternary_diff() {
+        let mut v = parse_helper("false ? 2 : false");
+        solve(&mut v).expect("should not fail");
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].to_string(), "(false ? (2 : any) : (false : any))".to_string());
+    }
+
+    #[test]
+    fn ternary_same_cond_not_bool() {
+        let mut v = parse_helper("2 ? true : false");
+        solve(&mut v).expect("should not fail");
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].to_string(), "(((2 : any) : bool) ? true : false)".to_string());
+    }
+
+    #[test]
+    fn ternary_diff_cond_not_bool() {
+        let mut v = parse_helper("2 ? false : 3");
+        solve(&mut v).expect("should not fail");
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].to_string(), "(((2 : any) : bool) ? (false : any) : (3 : any))".to_string());
+    }
 }
