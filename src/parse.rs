@@ -35,21 +35,15 @@ impl Display for Type {
 #[derive(Debug)]
 pub struct Ast {
     /// The variant of the AST.
-    pub ast: AstVariants,
+    pub ast: AstNode,
 
     /// The location in the file of the AST.
     pub span: Span,
-
-    /// The type of the ast.
-    pub type_: Type,
-
-    /// A coercion.
-    pub coercion: Option<Type>,
 }
 
 /// Represents the various types of ASTs that are valid for type migration.
 #[derive(Debug)]
-pub enum AstVariants {
+pub enum AstNode {
     /// A numeric value. This can be either an integer or a float.
     Number(f64),
 
@@ -77,8 +71,8 @@ pub enum AstVariants {
         value: Box<Ast>,
     },
 
-    /// The trinary operator (ie, cond ? then : elsy)
-    Trinary {
+    /// The ternary operator (ie, cond ? then : elsy)
+    Ternary {
         /// The condition of the operator.
         cond: Box<Ast>,
 
@@ -88,6 +82,18 @@ pub enum AstVariants {
         /// The value on false.
         elsy: Box<Ast>,
     },
+
+    /// A coercion inserted by the type migrator.
+    Coercion {
+        /// The expression being coerced.
+        expr: Box<Ast>,
+
+        /// The type being coerced from. This is here for redundancy and finding unintentional bugs.
+        source_type: Type,
+
+        /// The type being coerced to.
+        dest_type: Type,
+    }
 }
 
 /// Converts a [`swc_ecma_ast`] module body into a list of ASTs with type annotations for type migration.
@@ -157,13 +163,11 @@ fn walk_expression(expression: Expr) -> Ast {
         Expr::Unary(unary) => {
             let value = walk_expression(*unary.arg);
             Ast {
-                ast: AstVariants::Unary {
+                ast: AstNode::Unary {
                     op: unary.op,
                     value: Box::new(value),
                 },
                 span: unary.span,
-                type_: Default::default(),
-                coercion: Default::default(),
             }
         }
 
@@ -173,14 +177,12 @@ fn walk_expression(expression: Expr) -> Ast {
             let left = walk_expression(*bin.left);
             let right = walk_expression(*bin.right);
             Ast {
-                ast: AstVariants::Binary {
+                ast: AstNode::Binary {
                     op: bin.op,
                     left: Box::new(left),
                     right: Box::new(right),
                 },
                 span: bin.span,
-                type_: Default::default(),
-                coercion: Default::default(),
             }
         }
 
@@ -193,14 +195,12 @@ fn walk_expression(expression: Expr) -> Ast {
             let then = walk_expression(*trinary.cons);
             let elsy = walk_expression(*trinary.alt);
             Ast {
-                ast: AstVariants::Trinary {
+                ast: AstNode::Ternary {
                     cond: Box::new(cond),
                     then: Box::new(then),
                     elsy: Box::new(elsy),
                 },
                 span: trinary.span,
-                type_: Default::default(),
-                coercion: Default::default(),
             }
         }
 
@@ -213,19 +213,15 @@ fn walk_expression(expression: Expr) -> Ast {
             Lit::Str(_) => todo!(),
 
             Lit::Bool(b) => Ast {
-                ast: AstVariants::Boolean(b.value),
+                ast: AstNode::Boolean(b.value),
                 span: b.span,
-                type_: Type::Bool,
-                coercion: Default::default(),
             },
 
             Lit::Null(_) => todo!(),
 
             Lit::Num(n) => Ast {
-                ast: AstVariants::Number(n.value),
+                ast: AstNode::Number(n.value),
                 span: n.span,
-                type_: Type::Number,
-                coercion: Default::default(),
             },
 
             Lit::BigInt(_) => todo!(),

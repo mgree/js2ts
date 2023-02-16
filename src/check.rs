@@ -5,7 +5,7 @@ use z3::{
     Config, Context, DatatypeBuilder, DatatypeSort, Model, Optimize, SatResult,
 };
 
-use super::parse::{Ast, AstVariants, Type};
+use super::parse::{Ast, AstNode, Type};
 
 /// Contains various Z3 structs such as the context and type datatype, as well as the variants of the type datatype.
 struct Z3State<'a> {
@@ -136,20 +136,22 @@ impl<'a> State<'a> {
     }
 
     /// Generates constraints for each [`Ast`] node.
-    fn solve_helper(&mut self, ast: &mut Ast) -> (Type, Bool<'a>) {
-        if let Type::Any = ast.type_ {
-            ast.type_ = self.next_metavar();
-        }
-
+    fn generate_constraints(&mut self, ast: &mut Ast) -> (Type, Bool<'a>) {
         match &mut ast.ast {
             // ---------------------------
             // Γ ⊢ lit => coerce(lit.typ(), α, lit), α, weaken(lit.typ(), α)
-            AstVariants::Number(_) | AstVariants::Boolean(_) => {
-                self.weaken(ast.type_.clone(), ast, self.z3_bool(true))
+            v @ (AstNode::Number(_) | AstNode::Boolean(_)) => {
+                let type_ = match v {
+                    AstNode::Number(_) => Type::Number,
+                    AstNode::Boolean(_) => Type::Bool,
+                    _ => unreachable!(),
+                };
+
+                self.weaken(type_, ast, self.z3_bool(true))
             }
 
-            AstVariants::Binary { .. } => todo!(),
-            AstVariants::Unary { .. } => todo!(),
+            AstNode::Binary { .. } => todo!(),
+            AstNode::Unary { .. } => todo!(),
 
             // Γ ⊢ e_1 => T_1, φ_1
             // Γ ⊢ e_2 => T_2, φ_2
@@ -158,17 +160,16 @@ impl<'a> State<'a> {
             // Γ ⊢ if e_1 then e_2 else e_3 => if coerce(T_1, bool, e_1) then e_2 else e_3, T_2,
             //                                 φ_1 && φ_2 && φ_3 &&
             //                                 strengthen(T_1, bool) && T_2 = T_3
-            AstVariants::Trinary { cond, then, elsy } => {
-                let (t1, phi1) = self.solve_helper(&mut **cond);
-                let (t2, phi2) = self.solve_helper(&mut **then);
-                let (t3, phi3) = self.solve_helper(&mut **elsy);
+            AstNode::Ternary { cond, then, elsy } => {
+                let (t1, phi1) = self.generate_constraints(&mut **cond);
+                let (t2, phi2) = self.generate_constraints(&mut **then);
+                let (t3, phi3) = self.generate_constraints(&mut **elsy);
                 let phi4 = self.strengthen(t1, Type::Bool, &mut **cond)
-                    & self.type_to_z3_sort(&t2)._eq(&self.type_to_z3_sort(&t3))
-                    & self
-                        .type_to_z3_sort(&t2)
-                        ._eq(&self.type_to_z3_sort(&ast.type_));
+                    & self.type_to_z3_sort(&t2)._eq(&self.type_to_z3_sort(&t3));
                 (t2, phi1 & phi2 & phi3 & phi4)
             }
+
+            AstNode::Coercion { .. } => unreachable!("`AstNode::Coercion` is inserted by the migrator and never found in source"),
         }
     }
 
@@ -229,8 +230,21 @@ impl<'a> State<'a> {
         let t1_z3 = self.type_to_z3_sort(&t1);
         let t2_z3 = self.type_to_z3_sort(&t2);
         self.solver.assert_soft(&t1_z3._eq(&t2_z3), 1, None);
-        ast.type_ = t1;
-        ast.coercion = Some(t2);
+
+        // TODO: better way of doing this
+        let mut tmp = Ast {
+            ast: AstNode::Number(0.0),
+            span: Default::default(),
+        };
+        std::mem::swap(&mut tmp, ast);
+        *ast = Ast {
+            ast: AstNode::Coercion {
+                expr: Box::new(tmp),
+                source_type: t1,
+                dest_type: t2,
+            },
+            span: Default::default(),
+        };
     }
 
     /// (α, weaken'(t1, α, exp) & phi1) where weaken'(t1, t2, exp) =
@@ -305,35 +319,29 @@ impl<'a> State<'a> {
 
     /// Annotates the [`Ast`] with the types that Z3 deemed most appropriate.
     fn annotate(&self, model_result: &HashMap<u32, Type>, ast: &mut Ast) {
-        self.annotate_type(model_result, &mut ast.type_);
-        if let Some(t) = &mut ast.coercion {
-            self.annotate_type(model_result, t);
-        }
-
-        match &ast.coercion {
-            Some(t) if *t == ast.type_ => {
-                ast.coercion = None;
-            }
-
-            _ => (),
-        }
-
         match &mut ast.ast {
-            AstVariants::Number(_) | AstVariants::Boolean(_) => (),
+            AstNode::Number(_) | AstNode::Boolean(_) => (),
 
-            AstVariants::Binary { left, right, .. } => {
+            AstNode::Binary { left, right, .. } => {
                 self.annotate(model_result, &mut **left);
                 self.annotate(model_result, &mut **right);
             }
 
-            AstVariants::Unary { value, .. } => {
+            AstNode::Unary { value, .. } => {
                 self.annotate(model_result, &mut **value);
             }
 
-            AstVariants::Trinary { cond, then, elsy } => {
+            AstNode::Ternary { cond, then, elsy } => {
                 self.annotate(model_result, &mut **cond);
                 self.annotate(model_result, &mut **then);
                 self.annotate(model_result, &mut **elsy);
+            }
+
+            AstNode::Coercion { expr, source_type, dest_type } => {
+                self.annotate(model_result, &mut **expr);
+
+                self.annotate_type(model_result, source_type);
+                self.annotate_type(model_result, dest_type);
             }
         }
     }
@@ -354,7 +362,7 @@ pub fn solve(asts: &mut [Ast]) -> Result<(), String> {
 
     let mut phi = state.z3_bool(true);
     for ast in asts.iter_mut() {
-        let (_, p) = state.solve_helper(ast);
+        let (_, p) = state.generate_constraints(ast);
         phi &= p;
     }
 
