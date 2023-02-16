@@ -53,5 +53,7 @@ fn main() {
 
     let mut asts = parse::parse(module.body);
     check::solve(&mut asts).expect("oh no");
-    println!("{:?}", asts);
+    for ast in asts {
+        println!("{}", ast);
+    }
 }

@@ -96,6 +96,25 @@ pub enum AstNode {
     }
 }
 
+impl Display for Ast {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.ast)
+    }
+}
+
+impl Display for AstNode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AstNode::Number(v) => write!(f, "{}", v),
+            AstNode::Boolean(v) => write!(f, "{}", v),
+            AstNode::Binary { op, left, right } => write!(f, "({} {} {})", left, op, right),
+            AstNode::Unary { op, value } => write!(f, "{}{}", op, value),
+            AstNode::Ternary { cond, then, elsy } => write!(f, "({} ? {} : {})", cond, then, elsy),
+            AstNode::Coercion { expr, dest_type, .. } => write!(f, "({} : {})", expr, dest_type),
+        }
+    }
+}
+
 /// Converts a [`swc_ecma_ast`] module body into a list of ASTs with type annotations for type migration.
 ///
 /// # Example
