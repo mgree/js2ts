@@ -12,3 +12,6 @@ pub mod check;
 /// Private crate for testing utilities.
 #[cfg(test)]
 pub(crate) mod testing;
+
+/// Implements functions for validating the migrated [`parse::Ast`].
+pub mod typecheck;
