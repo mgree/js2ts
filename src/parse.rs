@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use swc_common::Span;
-use swc_ecma_ast::{BinaryOp, Decl, Expr, Lit, ModuleItem, Stmt, UnaryOp};
+use swc_ecma_ast::{BinaryOp, Decl, Expr, Lit, ModuleItem, Stmt, UnaryOp, Pat};
 
 /// Represents a type.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -18,6 +18,9 @@ pub enum Type {
 
     /// A boolean type.
     Bool,
+
+    /// A unit type (ie, void).
+    Unit,
 }
 
 impl Display for Type {
@@ -27,6 +30,7 @@ impl Display for Type {
             Type::Number => write!(f, "number"),
             Type::Bool => write!(f, "bool"),
             Type::Metavar(n) => write!(f, "${}", n),
+            Type::Unit => write!(f, "unit"),
         }
     }
 }
@@ -83,6 +87,13 @@ pub enum AstNode {
         elsy: Box<Ast>,
     },
 
+    /// A declaration (ie, var x = 2).
+    Declare {
+        /// The variables declared, with their respective optional init values.
+        // TODO: patterns
+        vars: Vec<(String, Option<Ast>)>,
+    },
+
     /// A coercion inserted by the type migrator.
     Coercion {
         /// The expression being coerced.
@@ -111,6 +122,22 @@ impl Display for AstNode {
             AstNode::Unary { op, value } => write!(f, "{}{}", op, value),
             AstNode::Ternary { cond, then, elsy } => write!(f, "({} ? {} : {})", cond, then, elsy),
             AstNode::Coercion { expr, dest_type, .. } => write!(f, "({} : {})", expr, dest_type),
+            AstNode::Declare { vars } => {
+                write!(f, "var ")?;
+                let mut first = true;
+                for (var, init) in vars.iter() {
+                    if first {
+                        first = false;
+                    } else {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", var)?;
+                    if let Some(init) = init {
+                        write!(f, " = {}", init)?;
+                    }
+                }
+                write!(f, ";")
+            }
         }
     }
 }
@@ -162,7 +189,25 @@ fn walk_statement(statement: Stmt) -> Option<Ast> {
 
         Stmt::Decl(Decl::Class(_)) => todo!(),
         Stmt::Decl(Decl::Fn(_)) => todo!(),
-        Stmt::Decl(Decl::Var(_)) => todo!(),
+
+        Stmt::Decl(Decl::Var(decl)) => {
+            let mut vars = Vec::new();
+            for decl in decl.decls {
+                match decl.name {
+                    Pat::Ident(name) => {
+                        vars.push((name.id.to_string(), decl.init.map(|v| walk_expression(*v))));
+                    }
+
+                    _ => todo!(),
+                }
+            }
+
+            Some(Ast {
+                ast: AstNode::Declare { vars, },
+                span: decl.span,
+            })
+        }
+
         Stmt::Decl(Decl::TsInterface(_)) => todo!(),
         Stmt::Decl(Decl::TsTypeAlias(_)) => todo!(),
         Stmt::Decl(Decl::TsEnum(_)) => todo!(),
@@ -206,6 +251,7 @@ fn walk_expression(expression: Expr) -> Ast {
         }
 
         Expr::Assign(_) => todo!(),
+
         Expr::Member(_) => todo!(),
         Expr::SuperProp(_) => todo!(),
 

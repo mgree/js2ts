@@ -28,6 +28,16 @@ fn typecheck_helper(ast: &Ast) -> Result<Type, String> {
                 Ok(dest_type.clone())
             }
         }
+
+        AstNode::Declare { vars } => {
+            for (_var, init) in vars {
+                if let Some(init) = init {
+                    typecheck_helper(init)?;
+                }
+            }
+
+            Ok(Type::Unit)
+        }
     }
 }
 

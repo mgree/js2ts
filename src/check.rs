@@ -14,6 +14,7 @@ struct Z3State<'a> {
     any_z3: Dynamic<'a>,
     number_z3: Dynamic<'a>,
     bool_z3: Dynamic<'a>,
+    unit_z3: Dynamic<'a>,
 }
 
 impl<'a> Z3State<'a> {
@@ -48,6 +49,11 @@ impl<'a> Z3State<'a> {
         self.is_variant(2, model, e)
     }
 
+    /// Checks if the given dynamic value is a unit type.
+    fn is_unit(&self, model: &Model, e: &Dynamic) -> bool {
+        self.is_variant(3, model, e)
+    }
+
     /// Converts a Z3 datatype type into a [`Type`].
     pub fn z3_to_type(&self, model: &'a Model, e: Dynamic) -> Type {
         if self.is_any(model, &e) {
@@ -56,6 +62,8 @@ impl<'a> Z3State<'a> {
             Type::Number
         } else if self.is_bool(model, &e) {
             Type::Bool
+        } else if self.is_unit(model, &e) {
+            Type::Unit
         } else {
             panic!("missing case in z3_to_typ");
         }
@@ -82,6 +90,7 @@ impl<'a> State<'a> {
                 any_z3: type_datatype.variants[0].constructor.apply(&[]),
                 number_z3: type_datatype.variants[1].constructor.apply(&[]),
                 bool_z3: type_datatype.variants[2].constructor.apply(&[]),
+                unit_z3: type_datatype.variants[3].constructor.apply(&[]),
                 type_datatype,
             },
             solver: Optimize::new(context),
@@ -101,6 +110,7 @@ impl<'a> State<'a> {
             .variant("Any", vec![])
             .variant("Number", vec![])
             .variant("Bool", vec![])
+            .variant("Unit", vec![])
             /*
                 .variant(
                     "Arr",
@@ -170,6 +180,25 @@ impl<'a> State<'a> {
             }
 
             AstNode::Coercion { .. } => unreachable!("`AstNode::Coercion` is inserted by the migrator and never found in source"),
+
+            // Γ ⊢ e1 => T_1, φ_1
+            // Γ,x:T_1 ⊢ e2 => T_2, φ_2
+            // ---------------------------------------
+            // Γ ⊢ let x = e1 in e2 => let x = e1 in e2, T_2, φ_1 && φ_2
+            AstNode::Declare { vars } => {
+                let mut phi = self.z3_bool(true);
+                for (_var, init) in vars.iter_mut() {
+                    if let Some(init) = init {
+                        let (_t, phi2) = self.generate_constraints(init);
+                        phi &= phi2;
+                    }
+                }
+                /*
+                let mut env = env.clone();
+                env.insert(x.clone(), t1);
+                */
+                (Type::Unit, phi)
+            }
         }
     }
 
@@ -179,6 +208,8 @@ impl<'a> State<'a> {
             Type::Any => self.z3.any_z3.clone(),
             Type::Number => self.z3.number_z3.clone(),
             Type::Bool => self.z3.bool_z3.clone(),
+            Type::Unit => self.z3.unit_z3.clone(),
+
             Type::Metavar(n) => match self.vars.entry(*n) {
                 Entry::Occupied(v) => v.get().clone(),
 
@@ -343,6 +374,14 @@ impl<'a> State<'a> {
                 self.annotate_type(model_result, dest_type);
                 if source_type == dest_type {
                     *ast = (**expr).clone();
+                }
+            }
+
+            AstNode::Declare { vars } => {
+                for (_var, init) in vars {
+                    if let Some(init) = init {
+                        self.annotate(model_result, init);
+                    }
                 }
             }
         }
