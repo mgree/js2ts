@@ -71,8 +71,9 @@ fn typecheck_helper(env: &mut Vec<(String, Type)>, ast: &Ast) -> Result<Type, St
         }
 
         AstNode::Block(block) => {
+            let mut env = env.clone();
             for stat in block {
-                typecheck_helper(env, stat)?;
+                typecheck_helper(&mut env, stat)?;
             }
             Ok(Type::Unit)
         }

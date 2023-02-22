@@ -229,8 +229,9 @@ impl<'a> State<'a> {
 
             AstNode::Block(block) => {
                 let mut phi = self.z3_bool(true);
+                let mut env = env.clone();
                 for stat in block {
-                    let (_, p) = self.generate_constraints(env, stat);
+                    let (_, p) = self.generate_constraints(&mut env, stat);
                     phi &= p;
                 }
 
