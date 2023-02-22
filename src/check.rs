@@ -146,7 +146,11 @@ impl<'a> State<'a> {
     }
 
     /// Generates constraints for each [`Ast`] node.
-    fn generate_constraints(&mut self, env: &mut Vec<(String, Type)>, ast: &mut Ast) -> (Type, Bool<'a>) {
+    fn generate_constraints(
+        &mut self,
+        env: &mut Vec<(String, Type)>,
+        ast: &mut Ast,
+    ) -> (Type, Bool<'a>) {
         match &mut ast.ast {
             // ---------------------------
             // Γ ⊢ lit => coerce(lit.typ(), α, lit), α, weaken(lit.typ(), α)
@@ -179,7 +183,9 @@ impl<'a> State<'a> {
                 (t2, phi1 & phi2 & phi3 & phi4)
             }
 
-            AstNode::Coercion { .. } => unreachable!("`AstNode::Coercion` is inserted by the migrator and never found in source"),
+            AstNode::Coercion { .. } => unreachable!(
+                "`AstNode::Coercion` is inserted by the migrator and never found in source"
+            ),
 
             // Γ ⊢ e1 => T_1, φ_1
             // Γ,x:T_1 ⊢ e2 => T_2, φ_2
@@ -198,7 +204,12 @@ impl<'a> State<'a> {
             }
 
             AstNode::Identifier(var) => {
-                let type_ = env.iter().rev().find(|(v, _)| v == var).map(|(_, t)| t.clone()).expect("todo: error handling for bad variables");
+                let type_ = env
+                    .iter()
+                    .rev()
+                    .find(|(v, _)| v == var)
+                    .map(|(_, t)| t.clone())
+                    .expect("todo: error handling for bad variables");
                 (type_, self.z3_bool(true))
             }
         }
@@ -370,7 +381,11 @@ impl<'a> State<'a> {
                 self.annotate(model_result, &mut **elsy);
             }
 
-            AstNode::Coercion { expr, source_type, dest_type } => {
+            AstNode::Coercion {
+                expr,
+                source_type,
+                dest_type,
+            } => {
                 self.annotate(model_result, &mut **expr);
                 self.annotate_type(model_result, source_type);
                 self.annotate_type(model_result, dest_type);
@@ -428,8 +443,8 @@ pub fn solve(asts: &mut [Ast]) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use crate::testing::*;
     use super::*;
+    use crate::testing::*;
     use crate::typecheck::typecheck;
 
     #[test]
@@ -464,7 +479,10 @@ mod tests {
         let mut v = parse_helper("false ? 2 : false");
         solve(&mut v).expect("should not fail");
         assert_eq!(v.len(), 1);
-        assert_eq!(v[0].to_string(), "(false ? (2 : any) : (false : any))".to_string());
+        assert_eq!(
+            v[0].to_string(),
+            "(false ? (2 : any) : (false : any))".to_string()
+        );
         typecheck(&v).expect("should not fail");
     }
 
@@ -473,7 +491,10 @@ mod tests {
         let mut v = parse_helper("2 ? true : false");
         solve(&mut v).expect("should not fail");
         assert_eq!(v.len(), 1);
-        assert_eq!(v[0].to_string(), "(((2 : any) : bool) ? true : false)".to_string());
+        assert_eq!(
+            v[0].to_string(),
+            "(((2 : any) : bool) ? true : false)".to_string()
+        );
         typecheck(&v).expect("should not fail");
     }
 
@@ -482,7 +503,10 @@ mod tests {
         let mut v = parse_helper("2 ? false : 3");
         solve(&mut v).expect("should not fail");
         assert_eq!(v.len(), 1);
-        assert_eq!(v[0].to_string(), "(((2 : any) : bool) ? (false : any) : (3 : any))".to_string());
+        assert_eq!(
+            v[0].to_string(),
+            "(((2 : any) : bool) ? (false : any) : (3 : any))".to_string()
+        );
         typecheck(&v).expect("should not fail");
     }
 }

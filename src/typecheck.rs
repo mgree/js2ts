@@ -21,7 +21,11 @@ fn typecheck_helper(env: &mut Vec<(String, Type)>, ast: &Ast) -> Result<Type, St
             }
         }
 
-        AstNode::Coercion { expr, source_type, dest_type } => {
+        AstNode::Coercion {
+            expr,
+            source_type,
+            dest_type,
+        } => {
             if typecheck_helper(env, &**expr)? != *source_type {
                 Err("coercion source type must match expression type".to_string())
             } else {

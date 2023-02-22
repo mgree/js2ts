@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use swc_common::Span;
-use swc_ecma_ast::{BinaryOp, Decl, Expr, Lit, ModuleItem, Stmt, UnaryOp, Pat};
+use swc_ecma_ast::{BinaryOp, Decl, Expr, Lit, ModuleItem, Pat, Stmt, UnaryOp};
 
 /// Represents a type.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -107,7 +107,7 @@ pub enum AstNode {
 
         /// The type being coerced to.
         dest_type: Type,
-    }
+    },
 }
 
 impl Display for Ast {
@@ -124,7 +124,9 @@ impl Display for AstNode {
             AstNode::Binary { op, left, right } => write!(f, "({} {} {})", left, op, right),
             AstNode::Unary { op, value } => write!(f, "{}{}", op, value),
             AstNode::Ternary { cond, then, elsy } => write!(f, "({} ? {} : {})", cond, then, elsy),
-            AstNode::Coercion { expr, dest_type, .. } => write!(f, "({} : {})", expr, dest_type),
+            AstNode::Coercion {
+                expr, dest_type, ..
+            } => write!(f, "({} : {})", expr, dest_type),
             AstNode::Declare { vars } => {
                 write!(f, "var ")?;
                 let mut first = true;
@@ -207,7 +209,7 @@ fn walk_statement(statement: Stmt) -> Option<Ast> {
             }
 
             Some(Ast {
-                ast: AstNode::Declare { vars, },
+                ast: AstNode::Declare { vars },
                 span: decl.span,
             })
         }
