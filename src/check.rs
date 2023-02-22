@@ -217,16 +217,13 @@ impl<'a> State<'a> {
             // Γ,x:T_1 ⊢ x = e_1 => T_2, φ_1 && T_1 = T_2
             AstNode::Assign { var, expr } => {
                 let (t1, phi1) = self.generate_constraints(env, &mut **expr);
-                let phi2 = if let Some(t2) = env
-                    .iter()
-                    .rev()
-                    .find(|(v, _)| v == var)
-                    .map(|(_, t)| t) {
-                    self.type_to_z3_sort(&t1)._eq(&self.type_to_z3_sort(t2))
-                } else {
-                    env.push((var.clone(), t1.clone()));
-                    self.z3_bool(true)
-                };
+                let phi2 =
+                    if let Some(t2) = env.iter().rev().find(|(v, _)| v == var).map(|(_, t)| t) {
+                        self.type_to_z3_sort(&t1)._eq(&self.type_to_z3_sort(t2))
+                    } else {
+                        env.push((var.clone(), t1.clone()));
+                        self.z3_bool(true)
+                    };
                 (t1, phi1 & phi2)
             }
         }
