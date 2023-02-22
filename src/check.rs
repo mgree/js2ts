@@ -222,7 +222,7 @@ impl<'a> State<'a> {
                     .rev()
                     .find(|(v, _)| v == var)
                     .map(|(_, t)| t) {
-                    self.type_to_z3_sort(&t1)._eq(&self.type_to_z3_sort(&t2))
+                    self.type_to_z3_sort(&t1)._eq(&self.type_to_z3_sort(t2))
                 } else {
                     env.push((var.clone(), t1.clone()));
                     self.z3_bool(true)
@@ -526,6 +526,35 @@ mod tests {
             v[0].to_string(),
             "(((2 : any) : bool) ? (false : any) : (3 : any))".to_string()
         );
+        typecheck(&v).expect("should not fail");
+    }
+
+    #[test]
+    fn assignment() {
+        let mut v = parse_helper("x = 2");
+        solve(&mut v).expect("should not fail");
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].to_string(), "(x#0 = 2)");
+        typecheck(&v).expect("should not fail");
+    }
+
+    #[test]
+    fn declaration() {
+        let mut v = parse_helper("var x = 2");
+        solve(&mut v).expect("should not fail");
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].to_string(), "var x#0 = 2;");
+        typecheck(&v).expect("should not fail");
+    }
+
+    #[test]
+    fn declare_any() {
+        let mut v = parse_helper("var x\nx = 2\nx ? 2 : 3");
+        solve(&mut v).expect("should not fail");
+        assert_eq!(v.len(), 3);
+        assert_eq!(v[0].to_string(), "var x#0;");
+        assert_eq!(v[1].to_string(), "(x#0 = (2 : any))");
+        assert_eq!(v[2].to_string(), "((x#0 : bool) ? 2 : 3)");
         typecheck(&v).expect("should not fail");
     }
 }

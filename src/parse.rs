@@ -368,6 +368,11 @@ mod tests {
     use crate::testing::*;
 
     #[test]
+    fn empty() {
+        parse_helper("");
+    }
+
+    #[test]
     fn number() {
         parse_helper("2");
         parse_helper("3.5");
@@ -411,5 +416,14 @@ mod tests {
         parse_helper("true ? 42 : false");
         parse_helper("false ? 2 + 3 : 9 / 5");
         parse_helper("true && false ? 4 - 3 : false || true");
+    }
+
+    #[test]
+    fn variables() {
+        parse_helper("x");
+        parse_helper("y");
+        parse_helper("x = 3");
+        parse_helper("var x = 3");
+        parse_helper("var x, y = 4, z, w = 6");
     }
 }
