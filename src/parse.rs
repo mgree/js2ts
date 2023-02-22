@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use swc_common::Span;
-use swc_ecma_ast::{BinaryOp, Decl, Expr, Lit, ModuleItem, Pat, Stmt, UnaryOp};
+use swc_ecma_ast::{BinaryOp, Decl, Expr, Lit, ModuleItem, Pat, Stmt, UnaryOp, PatOrExpr};
 
 /// Represents a type.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -97,6 +97,15 @@ pub enum AstNode {
     /// An identifier (for variables and constants).
     Identifier(String),
 
+    /// An assignment to a previously declared variable.
+    Assign {
+        /// The variable being assigned to.
+        var: String,
+
+        /// The expression to assign.
+        expr: Box<Ast>,
+    },
+
     /// A coercion inserted by the type migrator.
     Coercion {
         /// The expression being coerced.
@@ -144,6 +153,8 @@ impl Display for AstNode {
                 write!(f, ";")
             }
             AstNode::Identifier(var) => write!(f, "{}", var),
+
+            AstNode::Assign { var, expr } => write!(f, "({} = {})", var, expr),
         }
     }
 }
@@ -256,7 +267,29 @@ fn walk_expression(expression: Expr) -> Ast {
             }
         }
 
-        Expr::Assign(_) => todo!(),
+        Expr::Assign(assign) => {
+            match assign.left {
+                PatOrExpr::Pat(var) => {
+                    match *var {
+                        Pat::Ident(var) => Ast {
+                            ast: AstNode::Assign {
+                                var: var.id.to_string(),
+                                expr: Box::new(walk_expression(*assign.right)),
+                            },
+                            span: assign.span,
+                        },
+
+                        Pat::Array(_) => todo!(),
+                        Pat::Rest(_) => todo!(),
+                        Pat::Object(_) => todo!(),
+                        Pat::Assign(_) => todo!(),
+                        Pat::Invalid(_) => todo!(),
+                        Pat::Expr(_) => todo!(),
+                    }
+                }
+                PatOrExpr::Expr(_) => todo!(),
+            }
+        }
 
         Expr::Member(_) => todo!(),
         Expr::SuperProp(_) => todo!(),

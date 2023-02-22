@@ -134,13 +134,10 @@ impl<'a> State<'a> {
                     "Box",
                     vec![("bt", DatatypeAccessor::Datatype("Typ".into()))],
                 )
-                .variant("Unit", vec![])
                 .variant(
                     "Vect",
                     vec![("vt", DatatypeAccessor::Datatype("Typ".into()))],
                 )
-                .variant("Float", vec![])
-                .variant("Char", vec![])
             */
             .finish()
     }
@@ -203,6 +200,8 @@ impl<'a> State<'a> {
                 (Type::Unit, phi)
             }
 
+            // ---------------------------
+            // Γ ⊢ x => x, Γ(x), true
             AstNode::Identifier(var) => {
                 let type_ = env
                     .iter()
@@ -211,6 +210,24 @@ impl<'a> State<'a> {
                     .map(|(_, t)| t.clone())
                     .expect("todo: error handling for bad variables");
                 (type_, self.z3_bool(true))
+            }
+
+            // Γ,x:T_1 ⊢ e_1 => T_2, φ_1
+            // ----------------------------------------------
+            // Γ,x:T_1 ⊢ x = e_1 => T_2, φ_1 && T_1 = T_2
+            AstNode::Assign { var, expr } => {
+                let (t1, phi1) = self.generate_constraints(env, &mut **expr);
+                let phi2 = if let Some(t2) = env
+                    .iter()
+                    .rev()
+                    .find(|(v, _)| v == var)
+                    .map(|(_, t)| t) {
+                    self.type_to_z3_sort(&t1)._eq(&self.type_to_z3_sort(&t2))
+                } else {
+                    env.push((var.clone(), t1.clone()));
+                    self.z3_bool(true)
+                };
+                (t1, phi1 & phi2)
             }
         }
     }
@@ -401,6 +418,8 @@ impl<'a> State<'a> {
                     }
                 }
             }
+
+            AstNode::Assign { expr, .. } => self.annotate(model_result, &mut **expr),
         }
     }
 

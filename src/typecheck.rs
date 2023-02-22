@@ -45,13 +45,29 @@ fn typecheck_helper(env: &mut Vec<(String, Type)>, ast: &Ast) -> Result<Type, St
         }
 
         AstNode::Identifier(id) => {
-            for (var, type_) in env {
+            for (var, type_) in env.iter().rev() {
                 if var == id {
                     return Ok(type_.clone());
                 }
             }
 
             Err(format!("variable `{}` not found", id))
+        }
+
+        AstNode::Assign { var, expr } => {
+            let t1 = typecheck_helper(env, &**expr)?;
+            for (id, t2) in env.iter().rev() {
+                if id == var {
+                    if t1 == *t2 {
+                        return Ok(t1);
+                    } else {
+                        return Err("variable reassigned to a different type".to_string());
+                    }
+                }
+            }
+
+            env.push((var.clone(), t1.clone()));
+            Ok(t1)
         }
     }
 }
