@@ -117,6 +117,9 @@ pub enum AstNode {
         /// The type being coerced to.
         dest_type: Type,
     },
+
+    /// A block of statements.
+    Block(Vec<Ast>),
 }
 
 impl Display for Ast {
@@ -155,6 +158,14 @@ impl Display for AstNode {
             AstNode::Identifier(var) => write!(f, "{}", var),
 
             AstNode::Assign { var, expr } => write!(f, "({} = {})", var, expr),
+
+            AstNode::Block(block) => {
+                writeln!(f, "{{")?;
+                for stat in block {
+                    writeln!(f, "{};", stat)?;
+                }
+                writeln!(f, "}}")
+            }
         }
     }
 }
@@ -184,7 +195,10 @@ pub fn parse(module: Vec<ModuleItem>) -> Vec<Ast> {
 
 fn walk_statement(statement: Stmt) -> Option<Ast> {
     match statement {
-        Stmt::Block(_) => todo!(),
+        Stmt::Block(block) => Some(Ast {
+            ast: AstNode::Block(block.stmts.into_iter().filter_map(walk_statement).collect()),
+            span: block.span,
+        }),
 
         Stmt::Empty(_) => None,
 

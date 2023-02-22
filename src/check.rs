@@ -226,6 +226,16 @@ impl<'a> State<'a> {
                     };
                 (t1, phi1 & phi2)
             }
+
+            AstNode::Block(block) => {
+                let mut phi = self.z3_bool(true);
+                for stat in block {
+                    let (_, p) = self.generate_constraints(env, stat);
+                    phi &= p;
+                }
+
+                (Type::Unit, phi)
+            }
         }
     }
 
@@ -417,6 +427,12 @@ impl<'a> State<'a> {
             }
 
             AstNode::Assign { expr, .. } => self.annotate(model_result, &mut **expr),
+
+            AstNode::Block(block) => {
+                for stat in block {
+                    self.annotate(model_result, stat);
+                }
+            }
         }
     }
 
