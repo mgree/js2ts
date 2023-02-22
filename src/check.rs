@@ -146,7 +146,7 @@ impl<'a> State<'a> {
     }
 
     /// Generates constraints for each [`Ast`] node.
-    fn generate_constraints(&mut self, ast: &mut Ast) -> (Type, Bool<'a>) {
+    fn generate_constraints(&mut self, env: &mut Vec<(String, Type)>, ast: &mut Ast) -> (Type, Bool<'a>) {
         match &mut ast.ast {
             // ---------------------------
             // Γ ⊢ lit => coerce(lit.typ(), α, lit), α, weaken(lit.typ(), α)
@@ -171,9 +171,9 @@ impl<'a> State<'a> {
             //                                 φ_1 && φ_2 && φ_3 &&
             //                                 strengthen(T_1, bool) && T_2 = T_3
             AstNode::Ternary { cond, then, elsy } => {
-                let (t1, phi1) = self.generate_constraints(&mut **cond);
-                let (t2, phi2) = self.generate_constraints(&mut **then);
-                let (t3, phi3) = self.generate_constraints(&mut **elsy);
+                let (t1, phi1) = self.generate_constraints(env, &mut **cond);
+                let (t2, phi2) = self.generate_constraints(env, &mut **then);
+                let (t3, phi3) = self.generate_constraints(env, &mut **elsy);
                 let phi4 = self.strengthen(t1, Type::Bool, &mut **cond)
                     & self.type_to_z3_sort(&t2)._eq(&self.type_to_z3_sort(&t3));
                 (t2, phi1 & phi2 & phi3 & phi4)
@@ -187,17 +187,19 @@ impl<'a> State<'a> {
             // Γ ⊢ let x = e1 in e2 => let x = e1 in e2, T_2, φ_1 && φ_2
             AstNode::Declare { vars } => {
                 let mut phi = self.z3_bool(true);
-                for (_var, init) in vars.iter_mut() {
+                for (var, init) in vars.iter_mut() {
                     if let Some(init) = init {
-                        let (_t, phi2) = self.generate_constraints(init);
+                        let (type_, phi2) = self.generate_constraints(env, init);
+                        env.push((var.clone(), type_));
                         phi &= phi2;
                     }
                 }
-                /*
-                let mut env = env.clone();
-                env.insert(x.clone(), t1);
-                */
                 (Type::Unit, phi)
+            }
+
+            AstNode::Identifier(var) => {
+                let type_ = env.iter().rev().find(|(v, _)| v == var).map(|(_, t)| t.clone()).expect("todo: error handling for bad variables");
+                (type_, self.z3_bool(true))
             }
         }
     }
@@ -351,7 +353,7 @@ impl<'a> State<'a> {
     /// Annotates the [`Ast`] with the types that Z3 deemed most appropriate.
     fn annotate(&self, model_result: &HashMap<u32, Type>, ast: &mut Ast) {
         match &mut ast.ast {
-            AstNode::Number(_) | AstNode::Boolean(_) => (),
+            AstNode::Number(_) | AstNode::Boolean(_) | AstNode::Identifier(_) => (),
 
             AstNode::Binary { left, right, .. } => {
                 self.annotate(model_result, &mut **left);
@@ -402,8 +404,9 @@ pub fn solve(asts: &mut [Ast]) -> Result<(), String> {
     let mut state = State::new(&context, config);
 
     let mut phi = state.z3_bool(true);
+    let mut env = Vec::new();
     for ast in asts.iter_mut() {
-        let (_, p) = state.generate_constraints(ast);
+        let (_, p) = state.generate_constraints(&mut env, ast);
         phi &= p;
     }
 

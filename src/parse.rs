@@ -94,6 +94,9 @@ pub enum AstNode {
         vars: Vec<(String, Option<Ast>)>,
     },
 
+    /// An identifier (for variables and constants).
+    Identifier(String),
+
     /// A coercion inserted by the type migrator.
     Coercion {
         /// The expression being coerced.
@@ -138,6 +141,7 @@ impl Display for AstNode {
                 }
                 write!(f, ";")
             }
+            AstNode::Identifier(var) => write!(f, "{}", var),
         }
     }
 }
@@ -272,7 +276,10 @@ fn walk_expression(expression: Expr) -> Ast {
         Expr::Call(_) => todo!(),
         Expr::New(_) => todo!(),
         Expr::Seq(_) => todo!(),
-        Expr::Ident(_) => todo!(),
+        Expr::Ident(var) => Ast {
+            ast: AstNode::Identifier(var.to_string()),
+            span: var.span,
+        },
 
         Expr::Lit(lit) => match lit {
             Lit::Str(_) => todo!(),
