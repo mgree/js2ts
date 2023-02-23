@@ -131,7 +131,16 @@ pub enum AstNode {
 
         /// The else clause of the if statement.
         elsy: Option<Box<Ast>>,
-    }
+    },
+
+    /// A while loop.
+    While {
+        /// The condition of the while loop.
+        cond: Box<Ast>,
+
+        /// The body of the while loop.
+        body: Box<Ast>,
+    },
 }
 
 impl Display for Ast {
@@ -181,6 +190,8 @@ impl Display for AstNode {
 
             AstNode::If { cond, then, elsy: Some(elsy) } => write!(f, "if ({}) {}\nelse {}", cond, then, elsy),
             AstNode::If { cond, then, elsy: None } => write!(f, "if ({}) {}", cond, then),
+
+            AstNode::While { cond, body } => write!(f, "while ({}) {}", cond, body),
         }
     }
 }
@@ -236,7 +247,15 @@ fn walk_statement(statement: Stmt) -> Option<Ast> {
         Stmt::Switch(_) => todo!(),
         Stmt::Throw(_) => todo!(),
         Stmt::Try(_) => todo!(),
-        Stmt::While(_) => todo!(),
+
+        Stmt::While(while_) => Some(Ast {
+            ast: AstNode::While {
+                cond: Box::new(walk_expression(*while_.test)),
+                body: Box::new(walk_statement(*while_.body)?)
+            },
+            span: while_.span,
+        }),
+
         Stmt::DoWhile(_) => todo!(),
         Stmt::For(_) => todo!(),
         Stmt::ForIn(_) => todo!(),
@@ -469,5 +488,11 @@ mod tests {
         parse_helper("if (true) {2; 3}");
         parse_helper("if (true) 2\nelse {3; 4}");
         parse_helper("if (true) {2; 3} else {3; 5}");
+    }
+
+    #[test]
+    fn while_() {
+        parse_helper("while (true) 2");
+        parse_helper("while (true) {2; 3}");
     }
 }

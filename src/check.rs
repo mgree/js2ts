@@ -252,6 +252,14 @@ impl<'a> State<'a> {
                 let phi4 = self.strengthen(t, Type::Bool, &mut **cond);
                 (Type::Unit, phi1 & phi2 & phi3 & phi4)
             }
+
+            AstNode::While { cond, body } => {
+                let (t, phi1) = self.generate_constraints(env, &mut **cond);
+                let mut env = env.clone();
+                let (_, phi2) = self.generate_constraints(&mut env, &mut **body);
+                let phi3 = self.strengthen(t, Type::Bool, &mut **cond);
+                (Type::Unit, phi1 & phi2 & phi3)
+            }
         }
     }
 
@@ -457,6 +465,11 @@ impl<'a> State<'a> {
                     self.annotate(model_result, &mut **elsy);
                 }
             }
+
+            AstNode::While { cond, body } => {
+                self.annotate(model_result, &mut **cond);
+                self.annotate(model_result, &mut **body);
+            }
         }
     }
 
@@ -601,6 +614,15 @@ mod tests {
         solve(&mut v).expect("should not fail");
         assert_eq!(v.len(), 1);
         assert_eq!(v[0].to_string(), "if (true) 2\nelse 3");
+        typecheck(&v).expect("should not fail");
+    }
+
+    #[test]
+    fn while_() {
+        let mut v = parse_helper("while (true) 2");
+        solve(&mut v).expect("should not fail");
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].to_string(), "while (true) 2");
         typecheck(&v).expect("should not fail");
     }
 }
