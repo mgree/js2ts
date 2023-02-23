@@ -120,6 +120,18 @@ pub enum AstNode {
 
     /// A block of statements.
     Block(Vec<Ast>),
+
+    /// An if statement
+    If {
+        /// The condition of the if statement.
+        cond: Box<Ast>,
+
+        /// The then clause of the if statement.
+        then: Box<Ast>,
+
+        /// The else clause of the if statement.
+        elsy: Option<Box<Ast>>,
+    }
 }
 
 impl Display for Ast {
@@ -166,6 +178,9 @@ impl Display for AstNode {
                 }
                 writeln!(f, "}}")
             }
+
+            AstNode::If { cond, then, elsy: Some(elsy) } => write!(f, "if ({}) {}\nelse {}", cond, then, elsy),
+            AstNode::If { cond, then, elsy: None } => write!(f, "if ({}) {}", cond, then),
         }
     }
 }
@@ -208,7 +223,16 @@ fn walk_statement(statement: Stmt) -> Option<Ast> {
         Stmt::Labeled(_) => todo!(),
         Stmt::Break(_) => todo!(),
         Stmt::Continue(_) => todo!(),
-        Stmt::If(_) => todo!(),
+
+        Stmt::If(if_) => Some(Ast {
+            ast: AstNode::If {
+                cond: Box::new(walk_expression(*if_.test)),
+                then: Box::new(walk_statement(*if_.cons)?),
+                elsy: if_.alt.and_then(|v| walk_statement(*v)).map(Box::new),
+            },
+            span: if_.span,
+        }),
+
         Stmt::Switch(_) => todo!(),
         Stmt::Throw(_) => todo!(),
         Stmt::Try(_) => todo!(),
@@ -435,5 +459,15 @@ mod tests {
         parse_helper("x = 3");
         parse_helper("var x = 3");
         parse_helper("var x, y = 4, z, w = 6");
+    }
+
+    #[test]
+    fn if_() {
+        parse_helper("if (true) 2");
+        parse_helper("if (true) 2\nelse 3");
+        parse_helper("if (true) 2\nelse 3");
+        parse_helper("if (true) {2; 3}");
+        parse_helper("if (true) 2\nelse {3; 4}");
+        parse_helper("if (true) {2; 3} else {3; 5}");
     }
 }

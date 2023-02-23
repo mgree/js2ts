@@ -77,6 +77,22 @@ fn typecheck_helper(env: &mut Vec<(String, Type)>, ast: &Ast) -> Result<Type, St
             }
             Ok(Type::Unit)
         }
+
+        AstNode::If { cond, then, elsy } => {
+            let t = typecheck_helper(env, &**cond)?;
+            if t != Type::Bool {
+                return Err("condition of if statement must be of type `bool`".to_string());
+            }
+
+            let mut env_ = env.clone();
+            typecheck_helper(&mut env_, &**then)?;
+            if let Some(elsy) = elsy {
+                let mut env_ = env.clone();
+                typecheck_helper(&mut env_, &**elsy)?;
+            }
+
+            Ok(Type::Unit)
+        }
     }
 }
 

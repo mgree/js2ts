@@ -237,6 +237,21 @@ impl<'a> State<'a> {
 
                 (Type::Unit, phi)
             }
+
+            AstNode::If { cond, then, elsy } => {
+                let (t, phi1) = self.generate_constraints(env, &mut **cond);
+                let mut env_ = env.clone();
+                let (_, phi2) = self.generate_constraints(&mut env_, &mut **then);
+                let phi3 = if let Some(elsy) = elsy {
+                    let mut env_ = env.clone();
+                    let (_, phi3) = self.generate_constraints(&mut env_, &mut **elsy);
+                    phi3
+                } else {
+                    self.z3_bool(true)
+                };
+                let phi4 = self.strengthen(t, Type::Bool, &mut **cond);
+                (Type::Unit, phi1 & phi2 & phi3 & phi4)
+            }
         }
     }
 
@@ -434,6 +449,14 @@ impl<'a> State<'a> {
                     self.annotate(model_result, stat);
                 }
             }
+
+            AstNode::If { cond, then, elsy } => {
+                self.annotate(model_result, &mut **cond);
+                self.annotate(model_result, &mut **then);
+                if let Some(elsy) = elsy {
+                    self.annotate(model_result, &mut **elsy);
+                }
+            }
         }
     }
 
@@ -569,6 +592,15 @@ mod tests {
         assert_eq!(v[0].to_string(), "var x#0;");
         assert_eq!(v[1].to_string(), "(x#0 = (2 : any))");
         assert_eq!(v[2].to_string(), "((x#0 : bool) ? 2 : 3)");
+        typecheck(&v).expect("should not fail");
+    }
+
+    #[test]
+    fn if_() {
+        let mut v = parse_helper("if (true) 2\nelse 3");
+        solve(&mut v).expect("should not fail");
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].to_string(), "if (true) 2\nelse 3");
         typecheck(&v).expect("should not fail");
     }
 }
