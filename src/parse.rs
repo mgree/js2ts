@@ -188,8 +188,16 @@ impl Display for AstNode {
                 writeln!(f, "}}")
             }
 
-            AstNode::If { cond, then, elsy: Some(elsy) } => write!(f, "if ({}) {}\nelse {}", cond, then, elsy),
-            AstNode::If { cond, then, elsy: None } => write!(f, "if ({}) {}", cond, then),
+            AstNode::If {
+                cond,
+                then,
+                elsy: Some(elsy),
+            } => write!(f, "if ({}) {}\nelse {}", cond, then, elsy),
+            AstNode::If {
+                cond,
+                then,
+                elsy: None,
+            } => write!(f, "if ({}) {}", cond, then),
 
             AstNode::While { cond, body } => write!(f, "while ({}) {}", cond, body),
         }
@@ -251,7 +259,7 @@ fn walk_statement(statement: Stmt) -> Option<Ast> {
         Stmt::While(while_) => Some(Ast {
             ast: AstNode::While {
                 cond: Box::new(walk_expression(*while_.test)),
-                body: Box::new(walk_statement(*while_.body)?)
+                body: Box::new(walk_statement(*while_.body)?),
             },
             span: while_.span,
         }),
