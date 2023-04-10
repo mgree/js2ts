@@ -1,10 +1,60 @@
+use swc_ecma_ast::BinaryOp;
+
 use crate::parse::{Ast, AstNode, Type};
 
 fn typecheck_helper(env: &mut Vec<(String, Type)>, ast: &Ast) -> Result<Type, String> {
     match &ast.ast {
         AstNode::Number(_) => Ok(Type::Number),
         AstNode::Boolean(_) => Ok(Type::Bool),
-        AstNode::Binary { .. } => todo!(),
+
+        AstNode::Binary { op, left, right } => {
+            let left = typecheck_helper(env, &**left)?;
+            let right = typecheck_helper(env, &**right)?;
+
+            match op {
+                BinaryOp::EqEqEq => todo!(),
+                BinaryOp::NotEqEq => todo!(),
+
+                BinaryOp::EqEq
+                | BinaryOp::NotEq
+                | BinaryOp::Lt
+                | BinaryOp::LtEq
+                | BinaryOp::Gt
+                | BinaryOp::GtEq => {
+                    if let (Type::Number, Type::Number) = (left, right) {
+                        Ok(Type::Bool)
+                    } else {
+                        Err("binary comparison operation takes in numbers".to_string())
+                    }
+                }
+
+                BinaryOp::LShift
+                | BinaryOp::RShift
+                | BinaryOp::ZeroFillRShift
+                | BinaryOp::Add
+                | BinaryOp::Sub
+                | BinaryOp::Mul
+                | BinaryOp::Div
+                | BinaryOp::Mod
+                | BinaryOp::BitOr
+                | BinaryOp::BitXor
+                | BinaryOp::BitAnd => {
+                    if let (Type::Number, Type::Number) = (left, right) {
+                        Ok(Type::Number)
+                    } else {
+                        Err("binary number operation takes in numbers".to_string())
+                    }
+                }
+
+                BinaryOp::LogicalOr => todo!(),
+                BinaryOp::LogicalAnd => todo!(),
+                BinaryOp::In => todo!(),
+                BinaryOp::InstanceOf => todo!(),
+                BinaryOp::Exp => todo!(),
+                BinaryOp::NullishCoalescing => todo!(),
+            }
+        }
+
         AstNode::Unary { .. } => todo!(),
 
         AstNode::Ternary { cond, then, elsy } => {

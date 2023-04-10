@@ -1,5 +1,6 @@
 use std::collections::{hash_map::Entry, HashMap};
 
+use swc_ecma_ast::BinaryOp;
 use z3::{
     ast::{Ast as Z3Ast, Bool, Datatype, Dynamic},
     Config, Context, DatatypeBuilder, DatatypeSort, Model, Optimize, SatResult,
@@ -161,7 +162,50 @@ impl<'a> State<'a> {
                 self.weaken(type_, ast, self.z3_bool(true))
             }
 
-            AstNode::Binary { .. } => todo!(),
+            // Γ ⊢ e_1 => T_1, φ_1
+            // Γ ⊢ e_2 => T_2, φ_2
+            // ----------------------------------------------
+            // Γ ⊢ e_1 bop e_2 => coerce(bop.res, α) coerce(T_1, bop.t1) e_1 [+*] coerce(T_2, bop.t2) e_2, α,
+            //                     φ_1 && φ_2 && strengthen(T_1, bop.t1) && strengthen(T_2, bop.t2)
+            //                     && weaken(bop.res, α)
+            AstNode::Binary { op, left, right } => {
+                let (left_type, right_type, result_type) = match op {
+                    BinaryOp::EqEqEq => todo!(),
+                    BinaryOp::NotEqEq => todo!(),
+
+                    BinaryOp::EqEq
+                    | BinaryOp::NotEq
+                    | BinaryOp::Lt
+                    | BinaryOp::LtEq
+                    | BinaryOp::Gt
+                    | BinaryOp::GtEq => (Type::Number, Type::Number, Type::Bool),
+
+                    BinaryOp::LShift
+                    | BinaryOp::RShift
+                    | BinaryOp::ZeroFillRShift
+                    | BinaryOp::Add
+                    | BinaryOp::Sub
+                    | BinaryOp::Mul
+                    | BinaryOp::Div
+                    | BinaryOp::Mod
+                    | BinaryOp::BitOr
+                    | BinaryOp::BitXor
+                    | BinaryOp::BitAnd => (Type::Number, Type::Number, Type::Number),
+
+                    BinaryOp::LogicalOr => todo!(),
+                    BinaryOp::LogicalAnd => todo!(),
+                    BinaryOp::In => todo!(),
+                    BinaryOp::InstanceOf => todo!(),
+                    BinaryOp::Exp => todo!(),
+                    BinaryOp::NullishCoalescing => todo!(),
+                };
+
+                let (t1, phi1) = self.generate_constraints(env, left);
+                let (t2, phi2) = self.generate_constraints(env, right);
+                let phi3 = self.strengthen(t1, left_type, &mut *left) & self.strengthen(t2, right_type, &mut *right);
+                self.weaken(result_type, ast, phi1 & phi2 & phi3)
+            }
+
             AstNode::Unary { .. } => todo!(),
 
             // Γ ⊢ e_1 => T_1, φ_1
