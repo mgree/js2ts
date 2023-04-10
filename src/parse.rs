@@ -164,7 +164,7 @@ pub enum AstNode {
     Return {
         /// The optional value being returned.
         value: Option<Box<Ast>>,
-    }
+    },
 }
 
 impl Display for Ast {
@@ -225,7 +225,13 @@ impl Display for AstNode {
 
             AstNode::While { cond, body } => write!(f, "while ({}) {}", cond, body),
 
-            AstNode::FuncDecl { name, args, arg_types, ret_type, body } => {
+            AstNode::FuncDecl {
+                name,
+                args,
+                arg_types,
+                ret_type,
+                body,
+            } => {
                 write!(f, "function {}(", name)?;
 
                 for (i, (arg, type_)) in args.iter().zip(arg_types.iter()).enumerate() {
@@ -243,12 +249,10 @@ impl Display for AstNode {
                 }
             }
 
-            AstNode::Return { value } => {
-                match value {
-                    Some(value) => write!(f, "return {};", value),
-                    None => write!(f, "return;"),
-                }
-            }
+            AstNode::Return { value } => match value {
+                Some(value) => write!(f, "return {};", value),
+                None => write!(f, "return;"),
+            },
         }
     }
 }
@@ -290,7 +294,7 @@ fn walk_statement(statement: Stmt) -> Option<Ast> {
 
         Stmt::Return(ret) => Some(Ast {
             ast: AstNode::Return {
-                value: ret.arg.map(|v| Box::new(walk_expression(*v)))
+                value: ret.arg.map(|v| Box::new(walk_expression(*v))),
             },
             span: ret.span,
         }),
@@ -327,28 +331,33 @@ fn walk_statement(statement: Stmt) -> Option<Ast> {
 
         Stmt::Decl(Decl::Class(_)) => todo!(),
 
-        Stmt::Decl(Decl::Fn(func)) => {
-            Some(Ast {
-                ast: AstNode::FuncDecl {
-                    name: func.ident.sym.to_string(), 
-                    args: func.function.params.iter().map(|v| {
-                        match &v.pat {
-                            Pat::Ident(ident) => ident.id.to_string(),
-                            _ => todo!("handle nonidents"),
-                        }
-                    }).collect(),
-                    arg_types: iter::repeat(Type::Any).take(func.function.params.len()).collect(),
-                    ret_type: Type::Any,
-                    body: func.function.body.map(|v| {
-                        Box::new(Ast {
-                            ast: AstNode::Block(v.stmts.into_iter().filter_map(walk_statement).collect()),
-                            span: v.span,
-                        })
-                    }),
-                },
-                span: func.function.span,
-            })
-        }
+        Stmt::Decl(Decl::Fn(func)) => Some(Ast {
+            ast: AstNode::FuncDecl {
+                name: func.ident.sym.to_string(),
+                args: func
+                    .function
+                    .params
+                    .iter()
+                    .map(|v| match &v.pat {
+                        Pat::Ident(ident) => ident.id.to_string(),
+                        _ => todo!("handle nonidents"),
+                    })
+                    .collect(),
+                arg_types: iter::repeat(Type::Any)
+                    .take(func.function.params.len())
+                    .collect(),
+                ret_type: Type::Any,
+                body: func.function.body.map(|v| {
+                    Box::new(Ast {
+                        ast: AstNode::Block(
+                            v.stmts.into_iter().filter_map(walk_statement).collect(),
+                        ),
+                        span: v.span,
+                    })
+                }),
+            },
+            span: func.function.span,
+        }),
 
         Stmt::Decl(Decl::Var(decl)) => {
             let mut vars = Vec::new();

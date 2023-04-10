@@ -154,7 +154,13 @@ fn typecheck_helper(env: &mut Vec<(String, Type)>, ast: &Ast) -> Result<Type, St
             typecheck_helper(&mut env, &**body)?;
             Ok(Type::Unit)
         }
-        AstNode::FuncDecl { name, args, arg_types, ret_type, body } => todo!(),
+        AstNode::FuncDecl {
+            name,
+            args,
+            arg_types,
+            ret_type,
+            body,
+        } => todo!(),
         AstNode::Return { value } => todo!(),
     }
 }

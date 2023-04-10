@@ -202,7 +202,8 @@ impl<'a> State<'a> {
 
                 let (t1, phi1) = self.generate_constraints(env, left);
                 let (t2, phi2) = self.generate_constraints(env, right);
-                let phi3 = self.strengthen(t1, left_type, &mut *left) & self.strengthen(t2, right_type, &mut *right);
+                let phi3 = self.strengthen(t1, left_type, &mut *left)
+                    & self.strengthen(t2, right_type, &mut *right);
                 self.weaken(result_type, ast, phi1 & phi2 & phi3)
             }
 
@@ -306,7 +307,13 @@ impl<'a> State<'a> {
             }
             AstNode::Number(_) => todo!(),
             AstNode::Boolean(_) => todo!(),
-            AstNode::FuncDecl { name, args, arg_types, ret_type, body } => todo!(),
+            AstNode::FuncDecl {
+                name,
+                args,
+                arg_types,
+                ret_type,
+                body,
+            } => todo!(),
             AstNode::Return { value } => todo!(),
         }
     }
@@ -518,7 +525,13 @@ impl<'a> State<'a> {
                 self.annotate(model_result, &mut **cond);
                 self.annotate(model_result, &mut **body);
             }
-            AstNode::FuncDecl { name, args, arg_types, ret_type, body } => todo!(),
+            AstNode::FuncDecl {
+                name,
+                args,
+                arg_types,
+                ret_type,
+                body,
+            } => todo!(),
             AstNode::Return { value } => todo!(),
         }
     }
