@@ -304,6 +304,10 @@ impl<'a> State<'a> {
                 let phi3 = self.strengthen(t, Type::Bool, &mut **cond);
                 (Type::Unit, phi1 & phi2 & phi3)
             }
+            AstNode::Number(_) => todo!(),
+            AstNode::Boolean(_) => todo!(),
+            AstNode::FuncDecl { name, args, arg_types, ret_type, body } => todo!(),
+            AstNode::Return { value } => todo!(),
         }
     }
 
@@ -514,6 +518,8 @@ impl<'a> State<'a> {
                 self.annotate(model_result, &mut **cond);
                 self.annotate(model_result, &mut **body);
             }
+            AstNode::FuncDecl { name, args, arg_types, ret_type, body } => todo!(),
+            AstNode::Return { value } => todo!(),
         }
     }
 
