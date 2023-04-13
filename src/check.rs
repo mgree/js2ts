@@ -3,7 +3,7 @@ use std::collections::{hash_map::Entry, HashMap};
 use swc_ecma_ast::BinaryOp;
 use z3::{
     ast::{Ast as Z3Ast, Bool, Datatype, Dynamic},
-    Config, Context, DatatypeBuilder, DatatypeSort, Model, Optimize, SatResult,
+    Config, Context, DatatypeBuilder, DatatypeSort, Model, Optimize, SatResult, FuncDecl, DatatypeAccessor,
 };
 
 use super::parse::{Ast, AstNode, Type};
@@ -12,13 +12,42 @@ use super::parse::{Ast, AstNode, Type};
 struct Z3State<'a> {
     context: &'a Context,
     type_datatype: DatatypeSort<'a>,
-    any_z3: Dynamic<'a>,
-    number_z3: Dynamic<'a>,
-    bool_z3: Dynamic<'a>,
-    unit_z3: Dynamic<'a>,
 }
 
 impl<'a> Z3State<'a> {
+    /// Creates a new Z3State from a context.
+    fn new(context: &'a Context, type_datatype: DatatypeSort<'a>) -> Self {
+        Z3State {
+            context,
+            type_datatype,
+        }
+    }
+
+    /// Gets the sort that represents the any type.
+    fn any_z3(&self) -> Dynamic<'a> {
+        self.type_datatype.variants[0].constructor.apply(&[])
+    }
+
+    /// Gets the sort that represents the number type.
+    fn number_z3(&self) -> Dynamic<'a> {
+        self.type_datatype.variants[1].constructor.apply(&[])
+    }
+
+    /// Gets the sort that represents the bool type.
+    fn bool_z3(&self) -> Dynamic<'a> {
+        self.type_datatype.variants[2].constructor.apply(&[])
+    }
+
+    /// Gets the sort that represents the unit type.
+    fn unit_z3(&self) -> Dynamic<'a> {
+        self.type_datatype.variants[3].constructor.apply(&[])
+    }
+
+    /// Gets the sort that represents the function type.
+    fn func_z3(&self) -> &FuncDecl<'a> {
+        &self.type_datatype.variants[4].constructor
+    }
+
     /// Checks if a given dynamic value is the given variant.
     fn is_variant(&self, i: usize, model: &Model, e: &Dynamic) -> bool {
         model
@@ -55,6 +84,11 @@ impl<'a> Z3State<'a> {
         self.is_variant(3, model, e)
     }
 
+    /// Checks if the given dynamic value is a function type.
+    fn is_func(&self, model: &Model, e: &Dynamic) -> bool {
+        self.is_variant(4, model, e)
+    }
+
     /// Converts a Z3 datatype type into a [`Type`].
     pub fn z3_to_type(&self, model: &'a Model, e: Dynamic) -> Type {
         if self.is_any(model, &e) {
@@ -65,6 +99,9 @@ impl<'a> Z3State<'a> {
             Type::Bool
         } else if self.is_unit(model, &e) {
             Type::Unit
+        } else if self.is_func(model, &e) {
+            //Type::Function(vec![], ())
+            todo!()
         } else {
             panic!("missing case in z3_to_typ");
         }
@@ -86,14 +123,7 @@ impl<'a> State<'a> {
         let type_datatype = State::type_datatype(context);
         Self {
             _config: config,
-            z3: Z3State {
-                context,
-                any_z3: type_datatype.variants[0].constructor.apply(&[]),
-                number_z3: type_datatype.variants[1].constructor.apply(&[]),
-                bool_z3: type_datatype.variants[2].constructor.apply(&[]),
-                unit_z3: type_datatype.variants[3].constructor.apply(&[]),
-                type_datatype,
-            },
+            z3: Z3State::new(context, type_datatype),
             solver: Optimize::new(context),
             vars: HashMap::new(),
             metavar_index: 0,
@@ -106,20 +136,20 @@ impl<'a> State<'a> {
     }
 
     /// Creates the Z3 datatype that represents a [`Type`].
-    fn type_datatype(cxt: &Context) -> DatatypeSort<'_> {
+    fn type_datatype<'b>(cxt: &'b Context) -> DatatypeSort<'b> {
         DatatypeBuilder::new(cxt, "Type")
             .variant("Any", vec![])
             .variant("Number", vec![])
             .variant("Bool", vec![])
             .variant("Unit", vec![])
+            .variant(
+                "Func",
+                vec![
+                    ("arg", DatatypeAccessor::Datatype("Type".into())),
+                    ("ret", DatatypeAccessor::Datatype("Type".into())),
+                ],
+            )
             /*
-                .variant(
-                    "Arr",
-                    vec![
-                        ("arg", DatatypeAccessor::Datatype("Typ".into())),
-                        ("ret", DatatypeAccessor::Datatype("Typ".into())),
-                    ],
-                )
                 .variant(
                     "List",
                     vec![("lt", DatatypeAccessor::Datatype("Typ".into()))],
@@ -148,6 +178,7 @@ impl<'a> State<'a> {
         &mut self,
         env: &mut Vec<(String, Type)>,
         ast: &mut Ast,
+        ret_type: Option<&Type>,
     ) -> (Type, Bool<'a>) {
         match &mut ast.ast {
             // ---------------------------
@@ -200,8 +231,8 @@ impl<'a> State<'a> {
                     BinaryOp::NullishCoalescing => todo!(),
                 };
 
-                let (t1, phi1) = self.generate_constraints(env, left);
-                let (t2, phi2) = self.generate_constraints(env, right);
+                let (t1, phi1) = self.generate_constraints(env, left, ret_type);
+                let (t2, phi2) = self.generate_constraints(env, right, ret_type);
                 let phi3 = self.strengthen(t1, left_type, &mut *left)
                     & self.strengthen(t2, right_type, &mut *right);
                 self.weaken(result_type, ast, phi1 & phi2 & phi3)
@@ -217,9 +248,9 @@ impl<'a> State<'a> {
             //                                 φ_1 && φ_2 && φ_3 &&
             //                                 strengthen(T_1, bool) && T_2 = T_3
             AstNode::Ternary { cond, then, elsy } => {
-                let (t1, phi1) = self.generate_constraints(env, &mut **cond);
-                let (t2, phi2) = self.generate_constraints(env, &mut **then);
-                let (t3, phi3) = self.generate_constraints(env, &mut **elsy);
+                let (t1, phi1) = self.generate_constraints(env, &mut **cond, ret_type);
+                let (t2, phi2) = self.generate_constraints(env, &mut **then, ret_type);
+                let (t3, phi3) = self.generate_constraints(env, &mut **elsy, ret_type);
                 let phi4 = self.strengthen(t1, Type::Bool, &mut **cond)
                     & self.type_to_z3_sort(&t2)._eq(&self.type_to_z3_sort(&t3));
                 (t2, phi1 & phi2 & phi3 & phi4)
@@ -237,7 +268,7 @@ impl<'a> State<'a> {
                 let mut phi = self.z3_bool(true);
                 for (var, init) in vars.iter_mut() {
                     if let Some(init) = init {
-                        let (type_, phi2) = self.generate_constraints(env, init);
+                        let (type_, phi2) = self.generate_constraints(env, init, ret_type);
                         env.push((var.clone(), type_));
                         phi &= phi2;
                     }
@@ -261,7 +292,7 @@ impl<'a> State<'a> {
             // ----------------------------------------------
             // Γ,x:T_1 ⊢ x = e_1 => T_2, φ_1 && T_1 = T_2
             AstNode::Assign { var, expr } => {
-                let (t1, phi1) = self.generate_constraints(env, &mut **expr);
+                let (t1, phi1) = self.generate_constraints(env, &mut **expr, ret_type);
                 let phi2 =
                     if let Some(t2) = env.iter().rev().find(|(v, _)| v == var).map(|(_, t)| t) {
                         self.type_to_z3_sort(&t1)._eq(&self.type_to_z3_sort(t2))
@@ -276,7 +307,7 @@ impl<'a> State<'a> {
                 let mut phi = self.z3_bool(true);
                 let mut env = env.clone();
                 for stat in block {
-                    let (_, p) = self.generate_constraints(&mut env, stat);
+                    let (_, p) = self.generate_constraints(&mut env, stat, ret_type);
                     phi &= p;
                 }
 
@@ -284,12 +315,12 @@ impl<'a> State<'a> {
             }
 
             AstNode::If { cond, then, elsy } => {
-                let (t, phi1) = self.generate_constraints(env, &mut **cond);
+                let (t, phi1) = self.generate_constraints(env, &mut **cond, ret_type);
                 let mut env_ = env.clone();
-                let (_, phi2) = self.generate_constraints(&mut env_, &mut **then);
+                let (_, phi2) = self.generate_constraints(&mut env_, &mut **then, ret_type);
                 let phi3 = if let Some(elsy) = elsy {
                     let mut env_ = env.clone();
-                    let (_, phi3) = self.generate_constraints(&mut env_, &mut **elsy);
+                    let (_, phi3) = self.generate_constraints(&mut env_, &mut **elsy, ret_type);
                     phi3
                 } else {
                     self.z3_bool(true)
@@ -299,32 +330,63 @@ impl<'a> State<'a> {
             }
 
             AstNode::While { cond, body } => {
-                let (t, phi1) = self.generate_constraints(env, &mut **cond);
+                let (t, phi1) = self.generate_constraints(env, &mut **cond, ret_type);
                 let mut env = env.clone();
-                let (_, phi2) = self.generate_constraints(&mut env, &mut **body);
+                let (_, phi2) = self.generate_constraints(&mut env, &mut **body, ret_type);
                 let phi3 = self.strengthen(t, Type::Bool, &mut **cond);
                 (Type::Unit, phi1 & phi2 & phi3)
             }
-            AstNode::Number(_) => todo!(),
-            AstNode::Boolean(_) => todo!(),
+
             AstNode::FuncDecl {
-                name,
                 args,
                 arg_types,
                 ret_type,
                 body,
-            } => todo!(),
-            AstNode::Return { value } => todo!(),
+                ..
+            } => {
+                if let Some(body) = body {
+                    let mut env = env.clone();
+                    for arg in args.iter().cloned().zip(arg_types.iter().cloned()) {
+                        env.push(arg);
+                    }
+
+                    let (_, phi) = self.generate_constraints(&mut env, &mut **body, Some(ret_type));
+
+                    (Type::Unit, phi)
+                } else {
+                    (Type::Unit, self.z3_bool(true))
+                }
+            }
+
+            AstNode::Return { value } => {
+                match value {
+                    Some(value) => {
+                        let (_, phi) = self.weaken(ret_type.expect("return must be within a function").clone(), value, self.z3_bool(true));
+                        (Type::Unit, phi)
+                    }
+
+                    None => {
+                        *value = Some(Box::new(Ast {
+                            ast: AstNode::Unit,
+                            span: ast.span.clone(),
+                        }));
+                        let (_, phi) = self.weaken(ret_type.expect("return must be within a function").clone(), &mut **value.as_mut().unwrap(), self.z3_bool(true));
+                        (Type::Unit, phi)
+                    }
+                }
+            }
+
+            AstNode::Unit => unreachable!("this is generated"),
         }
     }
 
     /// Converts a type into a variant of the Z3 datatype that represents a type.
     fn type_to_z3_sort(&mut self, type_: &Type) -> Dynamic<'a> {
         match type_ {
-            Type::Any => self.z3.any_z3.clone(),
-            Type::Number => self.z3.number_z3.clone(),
-            Type::Bool => self.z3.bool_z3.clone(),
-            Type::Unit => self.z3.unit_z3.clone(),
+            Type::Any => self.z3.any_z3(),
+            Type::Number => self.z3.number_z3(),
+            Type::Bool => self.z3.bool_z3(),
+            Type::Unit => self.z3.unit_z3(),
 
             Type::Metavar(n) => match self.vars.entry(*n) {
                 Entry::Occupied(v) => v.get().clone(),
@@ -340,6 +402,16 @@ impl<'a> State<'a> {
                     x
                 }
             },
+
+            Type::Function(a, r) => {
+                if a.len() != 1 {
+                    todo!("functions with multiple or no arguments are currently unsupported");
+                }
+
+                let a = self.type_to_z3_sort(&a[0]);
+                let r = self.type_to_z3_sort(r);
+                self.z3.func_z3().apply(&[&a, &r])
+            }
         }
     }
 
@@ -417,7 +489,7 @@ impl<'a> State<'a> {
     ///             && T = α || (α = any && ground(T))      |> weaken'
     fn weaken(&mut self, t1: Type, ast: &mut Ast, phi1: Bool<'a>) -> (Type, Bool<'a>) {
         let alpha = self.next_metavar();
-        let coerce_case = self.type_to_z3_sort(&alpha)._eq(&self.z3.any_z3) & self.ground(&t1);
+        let coerce_case = self.type_to_z3_sort(&alpha)._eq(&self.z3.any_z3()) & self.ground(&t1);
         let dont_coerce_case = self.type_to_z3_sort(&t1)._eq(&self.type_to_z3_sort(&alpha));
         self.coerce(t1, alpha.clone(), ast);
         (alpha, phi1 & (coerce_case | dont_coerce_case))
@@ -436,7 +508,7 @@ impl<'a> State<'a> {
     /// T_1 = T_2 || (T_1 = any && ground(t2))
     #[must_use]
     fn strengthen(&mut self, t1: Type, t2: Type, ast: &mut Ast) -> Bool<'a> {
-        let coerce_case = self.type_to_z3_sort(&t1)._eq(&self.z3.any_z3) & self.ground(&t2);
+        let coerce_case = self.type_to_z3_sort(&t1)._eq(&self.z3.any_z3()) & self.ground(&t2);
         let dont_coerce_case = self.type_to_z3_sort(&t1)._eq(&self.type_to_z3_sort(&t2));
         self.coerce(t1, t2, ast);
         coerce_case | dont_coerce_case
@@ -467,7 +539,7 @@ impl<'a> State<'a> {
     /// Annotates the [`Ast`] with the types that Z3 deemed most appropriate.
     fn annotate(&self, model_result: &HashMap<u32, Type>, ast: &mut Ast) {
         match &mut ast.ast {
-            AstNode::Number(_) | AstNode::Boolean(_) | AstNode::Identifier(_) => (),
+            AstNode::Number(_) | AstNode::Boolean(_) | AstNode::Identifier(_) | AstNode::Unit | AstNode::Return { value: None } => (),
 
             AstNode::Binary { left, right, .. } => {
                 self.annotate(model_result, &mut **left);
@@ -525,14 +597,25 @@ impl<'a> State<'a> {
                 self.annotate(model_result, &mut **cond);
                 self.annotate(model_result, &mut **body);
             }
+
             AstNode::FuncDecl {
-                name,
-                args,
                 arg_types,
                 ret_type,
                 body,
-            } => todo!(),
-            AstNode::Return { value } => todo!(),
+                ..
+            } => {
+                for t in arg_types {
+                    self.annotate_type(model_result, t);
+                }
+
+                self.annotate_type(model_result, ret_type);
+
+                if let Some(body) = body {
+                    self.annotate(model_result, body)
+                }
+            }
+
+            AstNode::Return { value: Some(value) } => self.annotate(model_result, &mut **value),
         }
     }
 
@@ -552,8 +635,21 @@ pub fn solve(asts: &mut [Ast]) -> Result<(), String> {
 
     let mut phi = state.z3_bool(true);
     let mut env = Vec::new();
+
     for ast in asts.iter_mut() {
-        let (_, p) = state.generate_constraints(&mut env, ast);
+        if let AstNode::FuncDecl { name, args, arg_types, ret_type, .. } = &mut ast.ast {
+            if args.len() == 1 {
+                *arg_types = vec![state.next_metavar()];
+                *ret_type = state.next_metavar();
+                env.push((name.clone(), Type::Function(arg_types.clone(), Box::new(ret_type.clone()))));
+            } else {
+                todo!("functions with multiple or no arguments are currently unsupported");
+            }
+        }
+    }
+
+    for ast in asts.iter_mut() {
+        let (_, p) = state.generate_constraints(&mut env, ast, None);
         phi &= p;
     }
 

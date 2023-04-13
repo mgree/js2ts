@@ -21,6 +21,9 @@ pub enum Type {
 
     /// A unit type (ie, void).
     Unit,
+
+    /// A function type.
+    Function(Vec<Type>, Box<Type>),
 }
 
 impl Display for Type {
@@ -31,6 +34,17 @@ impl Display for Type {
             Type::Bool => write!(f, "bool"),
             Type::Metavar(n) => write!(f, "${}", n),
             Type::Unit => write!(f, "unit"),
+            Type::Function(args, ret) => {
+                write!(f, "fn (")?;
+                for (i, arg) in args.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?;
+                    }
+
+                    write!(f, "{}", arg)?;
+                }
+                write!(f, ") -> {}", ret)
+            }
         }
     }
 }
@@ -165,6 +179,9 @@ pub enum AstNode {
         /// The optional value being returned.
         value: Option<Box<Ast>>,
     },
+
+    /// A unit value
+    Unit,
 }
 
 impl Display for Ast {
@@ -253,6 +270,8 @@ impl Display for AstNode {
                 Some(value) => write!(f, "return {};", value),
                 None => write!(f, "return;"),
             },
+
+            AstNode::Unit => write!(f, "()"),
         }
     }
 }

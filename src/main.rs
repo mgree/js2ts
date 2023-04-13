@@ -54,9 +54,9 @@ fn main() {
     // TODO: errors
     let mut asts = parse::parse(module.body);
     check::solve(&mut asts).expect("oh no");
-    typecheck::typecheck(&asts).expect("oh no part 2");
 
-    for ast in asts {
+    for ast in asts.iter() {
         println!("{}", ast);
     }
+    typecheck::typecheck(&asts).expect("oh no part 2");
 }
