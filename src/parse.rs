@@ -1,7 +1,7 @@
 use std::{fmt::Display, iter};
 
 use swc_common::Span;
-use swc_ecma_ast::{BinaryOp, Decl, Expr, Lit, ModuleItem, Pat, PatOrExpr, Stmt, UnaryOp};
+use swc_ecma_ast::{BinaryOp, Decl, Expr, Lit, ModuleItem, Pat, PatOrExpr, Stmt, UnaryOp, Callee};
 
 /// Represents a type.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -182,6 +182,12 @@ pub enum AstNode {
 
     /// A unit value
     Unit,
+
+    /// A function call.
+    Call {
+        func: Box<Ast>,
+        args: Vec<Ast>,
+    }
 }
 
 impl Display for Ast {
@@ -272,6 +278,22 @@ impl Display for AstNode {
             },
 
             AstNode::Unit => write!(f, "()"),
+
+            AstNode::Call { func, args } => {
+                write!(f, "{}(", func)?;
+
+                let mut first = true;
+                for arg in args {
+                    if first {
+                        first = false;
+                    } else {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", arg)?;
+                }
+
+                write!(f, ")")
+            }
         }
     }
 }
@@ -475,7 +497,22 @@ fn walk_expression(expression: Expr) -> Ast {
             }
         }
 
-        Expr::Call(_) => todo!(),
+        Expr::Call(call) => {
+            match call.callee {
+                Callee::Super(_) => todo!(),
+                Callee::Import(_) => todo!(),
+                Callee::Expr(func) => {
+                    Ast {
+                        ast: AstNode::Call {
+                            func: Box::new(walk_expression(*func)),
+                            args: call.args.into_iter().map(|v| walk_expression(*v.expr)).collect(), // TODO: spreads
+                        },
+                        span: call.span,
+                    }
+                }
+            }
+        }
+
         Expr::New(_) => todo!(),
         Expr::Seq(_) => todo!(),
         Expr::Ident(var) => Ast {

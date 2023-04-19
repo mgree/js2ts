@@ -382,6 +382,7 @@ impl<'a> State<'a> {
             }
 
             AstNode::Unit => unreachable!("this is generated"),
+            AstNode::Call { func, args } => todo!(),
         }
     }
 
@@ -627,6 +628,8 @@ impl<'a> State<'a> {
             }
 
             AstNode::Return { value: Some(value) } => self.annotate(model_result, &mut **value),
+
+            AstNode::Call { func, args } => todo!(),
         }
     }
 

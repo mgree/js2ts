@@ -196,6 +196,8 @@ fn typecheck_helper(env: &mut Vec<(String, Type)>, ast: &Ast, ret_type: Option<&
         }
 
         AstNode::Unit => Ok(Type::Unit),
+
+        AstNode::Call { func, args } => todo!(),
     }
 }
 
