@@ -361,7 +361,9 @@ impl<'a> State<'a> {
             AstNode::Return { value } => {
                 match value {
                     Some(value) => {
-                        let (_, phi) = self.weaken(ret_type.expect("return must be within a function").clone(), value, self.z3_bool(true));
+                        let (t, phi) = self.generate_constraints(env, &mut **value, ret_type);
+                        let (t, mut phi) = self.weaken(t, value, phi);
+                        phi &= self.strengthen(t, ret_type.cloned().expect("return must occur within a function"), &mut **value);
                         (Type::Unit, phi)
                     }
 
