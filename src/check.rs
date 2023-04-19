@@ -114,6 +114,7 @@ struct State<'a> {
     z3: Z3State<'a>,
     solver: Optimize<'a>,
     vars: HashMap<u32, Dynamic<'a>>,
+    defaults: HashMap<u32, Type>,
     metavar_index: u32,
 }
 
@@ -126,6 +127,7 @@ impl<'a> State<'a> {
             z3: Z3State::new(context, type_datatype),
             solver: Optimize::new(context),
             vars: HashMap::new(),
+            defaults: HashMap::new(),
             metavar_index: 0,
         }
     }
@@ -350,6 +352,7 @@ impl<'a> State<'a> {
                         env.push(arg);
                     }
 
+                    self.defaults_to(ret_type.clone(), Type::Unit);
                     let (_, phi) = self.generate_constraints(&mut env, &mut **body, Some(ret_type));
 
                     (Type::Unit, phi)
@@ -516,6 +519,12 @@ impl<'a> State<'a> {
         coerce_case | dont_coerce_case
     }
 
+    fn defaults_to(&mut self, t1: Type, t2: Type) {
+        if let Type::Metavar(v) = t1 {
+            self.defaults.insert(v, t2);
+        }
+    }
+
     /// Converts the model into a map from the metavar to the actual type.
     fn solve_model(&self, model: Model) -> HashMap<u32, Type> {
         let mut result = HashMap::new();
@@ -533,7 +542,7 @@ impl<'a> State<'a> {
                 *t = s.clone();
             } else {
                 // This probably isn't reached but just in case.
-                *t = Type::Any;
+                *t = self.defaults.get(i).cloned().unwrap_or(Type::Any);
             }
         }
     }
